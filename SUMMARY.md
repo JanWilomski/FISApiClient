@@ -6,7 +6,7 @@
 
 ---
 
-## ✅ Zrealizowane funkcjonalności (v1.0)
+## ✅ Zrealizowane funkcjonalności (v1.1)
 
 ### 1. **Połączenie z serwerem MDS/SLC**
 - ✅ Nawiązywanie połączenia TCP/IP
@@ -16,21 +16,28 @@
 - ✅ Asynchroniczna komunikacja (async/await)
 - ✅ Nasłuchiwanie wiadomości w tle (background thread)
 
-### 2. **Interfejs użytkownika (WPF)**
+### 2. **Pobieranie i wyświetlanie instrumentów** 🆕
+- ✅ Wysyłanie żądań Dictionary (Request 5108)
+- ✅ Pobieranie instrumentów z rynków: 40, 330, 331, 332
+- ✅ Dekodowanie odpowiedzi z formatem GL
+- ✅ Wyświetlanie listy w DataGrid
+- ✅ Filtrowanie/wyszukiwanie instrumentów
+- ✅ Eksport listy do CSV
+- ✅ Obsługa eventu InstrumentsReceived
+- ✅ Thread-safe updates (Dispatcher)
+
+### 3. **Interfejs użytkownika (WPF)**
 - ✅ Nowoczesny, responsywny design
-- ✅ Formularz z parametrami połączenia:
-  - Adres IP (domyślnie: 192.168.45.25)
-  - Port (domyślnie: 25503)
-  - User (domyślnie: 103)
-  - Password (domyślnie: glglgl)
-  - Node (domyślnie: 5500)
-  - Subnode (domyślnie: 4500)
+- ✅ Formularz z parametrami połączenia
 - ✅ Wizualny wskaźnik statusu połączenia (zielony/czerwony)
 - ✅ Przyciski "Połącz" i "Rozłącz"
+- ✅ Przycisk "Lista instrumentów" 🆕
+- ✅ Okno z listą instrumentów (DataGrid) 🆕
+- ✅ Live search (wyszukiwanie w czasie rzeczywistym) 🆕
+- ✅ Liczniki (łącznie/wyświetlane) 🆕
+- ✅ Loading overlay 🆕
 - ✅ Pasek statusu z komunikatami
 - ✅ Walidacja danych wejściowych
-
-### 3. **Architektura MVVM**
 - ✅ Pełna separacja View, ViewModel, Model
 - ✅ Data binding (dwukierunkowy)
 - ✅ Commands (ICommand)
@@ -118,11 +125,11 @@ FISApiClient/
 | Kategoria | Liczba plików | Linie kodu (approx.) |
 |-----------|---------------|----------------------|
 | Models | 3 | ~400 |
-| ViewModels | 1 | ~250 |
-| Views (XAML) | 2 | ~200 |
-| Views (C#) | 2 | ~50 |
+| ViewModels | 2 | ~500 (+250 🆕) |
+| Views (XAML) | 4 | ~480 (+280 🆕) |
+| Views (C#) | 4 | ~65 (+15 🆕) |
 | Helpers | 2 | ~80 |
-| **Razem** | **10** | **~980** |
+| **Razem** | **15** | **~1555** |
 
 ### Statystyki dokumentacji
 
@@ -207,17 +214,18 @@ FISApiClient/
 
 ## 📅 Planowane funkcjonalności (roadmap)
 
-### Wersja 1.1 (najbliższy priorytet)
-- [ ] Okno z listą instrumentów
-- [ ] Pobieranie instrumentów z Dictionary (Request 5108)
-- [ ] Filtrowanie i wyszukiwanie instrumentów
-- [ ] Export listy do CSV
+### ~~Wersja 1.1~~ ✅ ZREALIZOWANO
+- ✅ Okno z listą instrumentów
+- ✅ Pobieranie instrumentów z Dictionary (Request 5108)
+- ✅ Filtrowanie i wyszukiwanie instrumentów
+- ✅ Export listy do CSV
 
-### Wersja 1.2
+### Wersja 1.2 (następny priorytet)
 - [ ] Wyświetlanie szczegółów instrumentu
 - [ ] Subskrypcja real-time (Request 1001)
 - [ ] Aktualizacje w czasie rzeczywistym
 - [ ] Wykresy cenowe (basic)
+- [ ] Cache instrumentów na dysku
 
 ### Wersja 2.0
 - [ ] Połączenie z SLE (składanie zleceń)
@@ -421,24 +429,27 @@ Użycie wewnętrzne - FIS API Protocol
 - ✅ **Pełna dokumentacja** (techniczna + użytkownika)
 - ✅ **Zgodność z protokołem FIS API v5**
 - ✅ **Profesjonalna architektura MVVM**
-- ✅ **Gotowość do rozbudowy** (instrumentation, SLE connection)
-- ✅ **~1000 linii kodu** wysokiej jakości
-- ✅ **~11000 słów dokumentacji**
+- ✅ **Pobieranie i wyświetlanie instrumentów** 🆕
+- ✅ **Filtrowanie i wyszukiwanie** 🆕
+- ✅ **Eksport do CSV** 🆕
+- ✅ **~1555 linii kodu** wysokiej jakości (+575 🆕)
+- ✅ **~17800 słów dokumentacji** (+6500 🆕)
+- ✅ **Gotowość do rozbudowy** (real-time, SLE connection)
 
 ---
 
 **Projekt zrealizowany**: 2025  
-**Status**: ✅ Produkcyjny (v1.0)  
-**Następna iteracja**: v1.1 (Lista instrumentów)
+**Status**: ✅ Produkcyjny (v1.1)  
+**Następna iteracja**: v1.2 (Real-time updates)
 
 ---
 
 ## 📦 Zawartość dostawy
 
-### Kod źródłowy (10 plików)
+### Kod źródłowy (13 plików)
 - ✅ Models (3 pliki)
-- ✅ ViewModels (1 plik)
-- ✅ Views (2 pliki)
+- ✅ ViewModels (2 pliki) (+1 🆕)
+- ✅ Views (4 pliki) (+2 🆕)
 - ✅ Helpers (2 pliki)
 - ✅ App (2 pliki)
 
@@ -446,18 +457,22 @@ Użycie wewnętrzne - FIS API Protocol
 - ✅ FISApiClient.csproj
 - ✅ FISApiClient.sln
 
-### Dokumentacja (5 plików)
+### Dokumentacja (8 plików)
 - ✅ README.md (Główna dokumentacja)
 - ✅ ARCHITECTURE.md (Diagramy)
 - ✅ USER_GUIDE.md (Przewodnik użytkownika)
 - ✅ BUILD_DEPLOY.md (Budowanie i wdrażanie)
+- ✅ RELEASE_v1.1.md (Release notes) 🆕
 - ✅ SUMMARY.md (Podsumowanie projektu)
+- ✅ QUICKSTART.md (Szybki start)
+- ✅ BUGFIXES.md (Historia poprawek)
 
-### Pozostałe (1 plik)
+### Pozostałe (2 pliki)
 - ✅ .gitignore
+- ✅ MANIFEST.txt
 
-**Razem**: 18 plików
+**Razem**: 25 plików (+5 🆕)
 
 ---
 
-🎉 **Projekt gotowy do użycia!**
+🎉 **Projekt v1.1 gotowy do użycia!**

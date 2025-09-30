@@ -24,5 +24,15 @@ namespace Cross_FIS_API_1._2
                 viewModel.Password = ((PasswordBox)sender).Password;
             }
         }
+
+        private void BtnInstruments_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is ConnectionViewModel viewModel)
+            {
+                var mdsService = viewModel.GetMdsService();
+                var instrumentWindow = new Views.InstrumentListWindow(mdsService);
+                instrumentWindow.Show();
+            }
+        }
     }
 }

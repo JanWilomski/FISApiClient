@@ -277,21 +277,54 @@
                     </Grid>
 
                     <!-- Action Buttons -->
-                    <StackPanel Orientation="Horizontal" 
+                    <StackPanel Orientation="Vertical" 
                                HorizontalAlignment="Center"
                                Margin="0,30,0,0">
-                        <Button Content="Połącz" 
-                               Command="{Binding ConnectCommand}"
-                               Width="140"
+                        <!-- Connection Buttons -->
+                        <StackPanel Orientation="Horizontal" 
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,15">
+                            <Button Content="Połącz" 
+                                   Command="{Binding ConnectCommand}"
+                                   Width="140"
+                                   Height="45"
+                                   Margin="0,0,15,0"
+                                   Style="{StaticResource PrimaryButton}"/>
+                            
+                            <Button Content="Rozłącz" 
+                                   Command="{Binding DisconnectCommand}"
+                                   Width="140"
+                                   Height="45"
+                                   Style="{StaticResource SecondaryButton}"/>
+                        </StackPanel>
+
+                        <!-- Instruments Button -->
+                        <Button x:Name="BtnInstruments"
+                               Content="📋 Lista instrumentów"
+                               Width="295"
                                Height="45"
-                               Margin="0,0,15,0"
-                               Style="{StaticResource PrimaryButton}"/>
-                        
-                        <Button Content="Rozłącz" 
-                               Command="{Binding DisconnectCommand}"
-                               Width="140"
-                               Height="45"
-                               Style="{StaticResource SecondaryButton}"/>
+                               FontSize="15"
+                               Click="BtnInstruments_Click"
+                               IsEnabled="{Binding IsConnected}"
+                               >
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+                                    <Setter Property="Background" Value="#4CAF50"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#43A047"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter Property="Background" Value="#388E3C"/>
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter Property="Background" Value="#CCCCCC"/>
+                                            <Setter Property="Foreground" Value="#999999"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
