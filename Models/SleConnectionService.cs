@@ -15,6 +15,7 @@ namespace Cross_FIS_API_1._2.Models
         private string _node = string.Empty;
         private string _subnode = string.Empty;
         private string _userNumber = string.Empty;
+        private string _assignedCallingId = "00000"; // Numer przydzielony przez serwer podczas logowania
 
         private const byte Stx = 2;
         private const byte Etx = 3;
@@ -85,6 +86,7 @@ namespace Cross_FIS_API_1._2.Models
 
         /// <summary>
         /// Subskrypcja real-time replies (request 2017) - WYMAGANE przed wysłaniem zleceń
+        /// Format zgodny z FIS API Manual
         /// </summary>
         private async Task SubscribeToRealTimeReplies()
         {
@@ -98,6 +100,7 @@ namespace Cross_FIS_API_1._2.Models
                 
                 _realtimeSubscribed = true;
                 Debug.WriteLine("[SLE] Real-time replies subscription sent (request 2017)");
+                Debug.WriteLine($"[SLE] Subscription data length: {subscriptionRequest.Length} bytes");
             }
             catch (Exception ex)
             {
@@ -369,21 +372,47 @@ namespace Cross_FIS_API_1._2.Models
             return BuildMessage(dataPayload, 1100);
         }
 
+        /// <summary>
+        /// POPRAWIONY format requestu 2017 zgodny z FIS API Manual
+        /// </summary>
         private byte[] BuildRealTimeSubscriptionRequest()
         {
             // Request 2017 - Real-time replies subscription
+            // Format zgodny z FIS API Manual (przykład C++)
             var dataBuilder = new List<byte>();
             
-            // User number (5 bajtów ASCII)
-            dataBuilder.AddRange(Encoding.ASCII.GetBytes(_userNumber.PadLeft(5, '0')));
+            // Flagi subskrypcji - określają jakie typy komunikatów real-time chcemy otrzymywać
+            // Ack flag (1 bajt) - '1' = chcemy otrzymywać potwierdzenia
+            dataBuilder.Add((byte)'1');
             
-            // Request category (1 bajt) - ' ' dla subscription
-            dataBuilder.Add((byte)' ');
+            // Reject flag (1 bajt) - '1' = chcemy otrzymywać odrzucenia
+            dataBuilder.Add((byte)'1');
             
-            // Filler (10 bajtów)
-            dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 10)));
+            // Exchange reject flag (1 bajt) - '1' = chcemy otrzymywać odrzucenia z giełdy
+            dataBuilder.Add((byte)'1');
             
+            // Trade execution flag (1 bajt) - '0' = nie subskrybujemy executions (domyślnie)
+            dataBuilder.Add((byte)'0');
+            
+            // Exchange message flag (1 bajt) - '0' = nie subskrybujemy wiadomości z giełdy
+            dataBuilder.Add((byte)'0');
+            
+            // Default flag (1 bajt) - '0' = wartość domyślna
+            dataBuilder.Add((byte)'0');
+            
+            // Inflected message flag (1 bajt) - '0' = nie subskrybujemy
+            dataBuilder.Add((byte)'0');
+            
+            // 11 bajtów filler (spacje)
+            dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 11)));
+            
+            // Łącznie: 7 + 11 = 18 bajtów danych
             var dataPayload = dataBuilder.ToArray();
+            
+            Debug.WriteLine($"[SLE] Building 2017 subscription request:");
+            Debug.WriteLine($"[SLE] Data payload length: {dataPayload.Length} bytes");
+            Debug.WriteLine($"[SLE] Flags: ack=1, reject=1, exch_reject=1, trade=0, msg=0, def=0, infl=0");
+            
             return BuildMessage(dataPayload, 2017);
         }
 
@@ -485,6 +514,11 @@ namespace Cross_FIS_API_1._2.Models
             return BuildMessage(dataPayload, 2000);
         }
 
+        /// <summary>
+        /// Buduje wiadomość FIS API z nagłówkiem, danymi i stopką
+        /// POPRAWIONY: API version dla SLE V5 to '0'
+        /// POPRAWIONY: Używa przydzielonego Calling ID zamiast zer
+        /// </summary>
         private byte[] BuildMessage(byte[] dataPayload, int requestNumber)
         {
             int dataLength = dataPayload.Length;
@@ -500,11 +534,18 @@ namespace Cross_FIS_API_1._2.Models
                 
                 // HEADER (32 bajty)
                 writer.Write(Stx);
-                writer.Write((byte)'0'); // API version dla v3
+                
+                // API version (1 bajt) - KRYTYCZNE: ' ' (spacja) dla SLE V4/kompatybilności z request 2017
+                // Request 2017 nie jest dostępny w API V5, wymaga V4!
+                writer.Write((byte)' '); // SLE V4 compatibility
+                
                 writer.Write(Encoding.ASCII.GetBytes((HeaderLength + dataLength + FooterLength).ToString().PadLeft(5, '0')));
                 writer.Write(Encoding.ASCII.GetBytes(_subnode.PadLeft(5, '0'))); // Called logical ID
                 writer.Write(Encoding.ASCII.GetBytes(new string(' ', 5))); // Filler
-                writer.Write(Encoding.ASCII.GetBytes("00000")); // Calling logical ID
+                
+                // KRYTYCZNE: Używamy przydzielonego przez serwer numeru logicznego
+                writer.Write(Encoding.ASCII.GetBytes(_assignedCallingId.PadLeft(5, '0'))); // Calling logical ID
+                
                 writer.Write(Encoding.ASCII.GetBytes(new string(' ', 2))); // Filler
                 writer.Write(Encoding.ASCII.GetBytes(requestNumber.ToString().PadLeft(5, '0'))); // Request number
                 writer.Write(Encoding.ASCII.GetBytes(new string(' ', 3))); // Filler
@@ -535,11 +576,27 @@ namespace Cross_FIS_API_1._2.Models
             
             try
             {
+                // Sprawdź request number w odpowiedzi
                 string requestNumberStr = Encoding.ASCII.GetString(response, 26, 5);
-                return requestNumberStr == "01100"; // Success response
+                
+                if (requestNumberStr == "01100") // Success response
+                {
+                    // KRYTYCZNE: W odpowiedzi serwera pola są odwrócone!
+                    // W requestach OD klienta: Called=serwer(14300), Calling=klient(my)
+                    // W odpowiedziach OD serwera: Called=klient(my), Calling=serwer(14300)
+                    // Musimy odczytać CALLED ID (pozycja 9-13), nie CALLING ID (19-23)!
+                    string assignedCallingId = Encoding.ASCII.GetString(response, 9, 5);
+                    _assignedCallingId = assignedCallingId.Trim();
+                    
+                    Debug.WriteLine($"[SLE] Login successful - assigned calling ID: {_assignedCallingId}");
+                    return true;
+                }
+                
+                return false;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[SLE] Error verifying login response: {ex.Message}");
                 return false;
             }
         }
