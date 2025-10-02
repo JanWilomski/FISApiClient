@@ -94,21 +94,21 @@ namespace Cross_FIS_API_1._2.ViewModels
 
         #region SLE Properties
 
-        private string _sleIpAddress = "192.168.45.25";
+        private string _sleIpAddress = "172.31.136.4";
         public string SleIpAddress
         {
             get => _sleIpAddress;
             set => SetProperty(ref _sleIpAddress, value);
         }
 
-        private string _slePort = "25504";
+        private string _slePort = "19593";
         public string SlePort
         {
             get => _slePort;
             set => SetProperty(ref _slePort, value);
         }
 
-        private string _sleUser = "103";
+        private string _sleUser = "461";
         public string SleUser
         {
             get => _sleUser;
@@ -122,14 +122,14 @@ namespace Cross_FIS_API_1._2.ViewModels
             set => SetProperty(ref _slePassword, value);
         }
 
-        private string _sleNode = "5500";
+        private string _sleNode = "24300";
         public string SleNode
         {
             get => _sleNode;
             set => SetProperty(ref _sleNode, value);
         }
 
-        private string _sleSubnode = "4500";
+        private string _sleSubnode = "14300";
         public string SleSubnode
         {
             get => _sleSubnode;
