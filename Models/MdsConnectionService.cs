@@ -129,11 +129,16 @@ namespace Cross_FIS_API_1._2.Models
             }
         }
 
-        public async Task RequestInstrumentDetails(string glidAndSymbol)
+        public async Task RequestInstrumentDetails(string glidAndStockcode)
         {
             if (!IsConnected || _stream == null) return;
-            byte[] request = BuildStockWatchRequest(glidAndSymbol);
+            
+            Debug.WriteLine($"[MDS] Requesting instrument details for: {glidAndStockcode}");
+            
+            byte[] request = BuildStockWatchRequest(glidAndStockcode);
             await _stream.WriteAsync(request, 0, request.Length);
+            
+            Debug.WriteLine($"[MDS] Request sent for: {glidAndStockcode}");
         }
 
         private void ProcessIncomingMessage(byte[] response, int length)
@@ -162,17 +167,21 @@ namespace Cross_FIS_API_1._2.Models
                 string requestNumberStr = Encoding.ASCII.GetString(response, stxPos + 24, 5);
                 if (int.TryParse(requestNumberStr, out int requestNumber))
                 {
+                    Debug.WriteLine($"[MDS] Received response with request number: {requestNumber}");
+                    
                     switch(requestNumber)
                     {
                         case 5108:
                             ProcessDictionaryResponse(response, length, stxPos);
                             break;
                         case 1000: 
-                            ProcessInstrumentDetailsResponse(response, length, stxPos);
-                            break;
                         case 1001:
                         case 1003:
+                            Debug.WriteLine($"[MDS] Processing instrument details response (request {requestNumber})");
                             ProcessInstrumentDetailsResponse(response, length, stxPos);
+                            break;
+                        default:
+                            Debug.WriteLine($"[MDS] Unhandled request number: {requestNumber}");
                             break;
                     }
                 }
@@ -228,10 +237,19 @@ namespace Cross_FIS_API_1._2.Models
                 byte chaining = response[pos++];
 
                 details.GlidAndSymbol = DecodeField(response, ref pos);
-                if (string.IsNullOrEmpty(details.GlidAndSymbol)) return;
+                
+                Debug.WriteLine($"[MDS] Decoded GlidAndSymbol: '{details.GlidAndSymbol}'");
+                
+                if (string.IsNullOrEmpty(details.GlidAndSymbol))
+                {
+                    Debug.WriteLine("[MDS] GlidAndSymbol is empty, skipping response");
+                    return;
+                }
 
+                // Pomiń 7 bajtów
                 pos += 7;
 
+                // Parsowanie pól
                 for (int fieldNumber = 0; fieldNumber <= 140; fieldNumber++)
                 {
                     if (pos >= length || response[pos] == Etx)
@@ -243,33 +261,83 @@ namespace Cross_FIS_API_1._2.Models
 
                     switch (fieldNumber)
                     {
-                        case 0: details.BidQuantity = ParseLong(fieldValue); break;
-                        case 1: details.BidPrice = ParseDecimal(fieldValue); break;
-                        case 2: details.AskPrice = ParseDecimal(fieldValue); break;
-                        case 3: details.AskQuantity = ParseLong(fieldValue); break;
-                        case 4: details.LastPrice = ParseDecimal(fieldValue); break;
-                        case 5: details.LastQuantity = ParseLong(fieldValue); break;
-                        case 6: details.LastTradeTime = fieldValue; break;
-                        case 8: details.PercentageVariation = ParseDecimal(fieldValue); break;
-                        case 9: details.Volume = ParseLong(fieldValue); break;
-                        case 10: details.OpenPrice = ParseDecimal(fieldValue); break;
-                        case 11: details.HighPrice = ParseDecimal(fieldValue); break;
-                        case 12: details.LowPrice = ParseDecimal(fieldValue); break;
-                        case 13: details.SuspensionIndicator = fieldValue; break;
-                        case 14: details.VariationSign = fieldValue; break;
-                        case 16: details.ClosePrice = ParseDecimal(fieldValue); break;
-                        case 88: details.ISIN = fieldValue; break;
-                        case 140: details.TradingPhase = fieldValue; break;
+                        case 0: 
+                            details.BidQuantity = ParseLong(fieldValue);
+                            if (details.BidQuantity > 0)
+                                Debug.WriteLine($"[MDS] BidQuantity: {details.BidQuantity}");
+                            break;
+                        case 1: 
+                            details.BidPrice = ParseDecimal(fieldValue);
+                            if (details.BidPrice > 0)
+                                Debug.WriteLine($"[MDS] BidPrice: {details.BidPrice}");
+                            break;
+                        case 2: 
+                            details.AskPrice = ParseDecimal(fieldValue);
+                            if (details.AskPrice > 0)
+                                Debug.WriteLine($"[MDS] AskPrice: {details.AskPrice}");
+                            break;
+                        case 3: 
+                            details.AskQuantity = ParseLong(fieldValue);
+                            if (details.AskQuantity > 0)
+                                Debug.WriteLine($"[MDS] AskQuantity: {details.AskQuantity}");
+                            break;
+                        case 4: 
+                            details.LastPrice = ParseDecimal(fieldValue);
+                            if (details.LastPrice > 0)
+                                Debug.WriteLine($"[MDS] LastPrice: {details.LastPrice}");
+                            break;
+                        case 5: 
+                            details.LastQuantity = ParseLong(fieldValue);
+                            break;
+                        case 6: 
+                            details.LastTradeTime = fieldValue;
+                            break;
+                        case 8: 
+                            details.PercentageVariation = ParseDecimal(fieldValue);
+                            break;
+                        case 9: 
+                            details.Volume = ParseLong(fieldValue);
+                            if (details.Volume > 0)
+                                Debug.WriteLine($"[MDS] Volume: {details.Volume}");
+                            break;
+                        case 10: 
+                            details.OpenPrice = ParseDecimal(fieldValue);
+                            break;
+                        case 11: 
+                            details.HighPrice = ParseDecimal(fieldValue);
+                            break;
+                        case 12: 
+                            details.LowPrice = ParseDecimal(fieldValue);
+                            break;
+                        case 13: 
+                            details.SuspensionIndicator = fieldValue;
+                            break;
+                        case 14: 
+                            details.VariationSign = fieldValue;
+                            break;
+                        case 16: 
+                            details.ClosePrice = ParseDecimal(fieldValue);
+                            break;
+                        case 88: 
+                            details.ISIN = fieldValue;
+                            break;
+                        case 140: 
+                            details.TradingPhase = fieldValue;
+                            break;
                         default:
                             break;
                     }
                 }
 
+                Debug.WriteLine($"[MDS] Invoking InstrumentDetailsReceived event for: {details.GlidAndSymbol}");
+                Debug.WriteLine($"[MDS] LastPrice: {details.LastPrice}, BidPrice: {details.BidPrice}, AskPrice: {details.AskPrice}");
+                
                 InstrumentDetailsReceived?.Invoke(details);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Failed to parse instrument details: {ex.Message}");
+                Debug.WriteLine($"[MDS] Failed to parse instrument details: {ex.Message}");
+                Debug.WriteLine($"[MDS] Stack trace: {ex.StackTrace}");
             }
         }
 

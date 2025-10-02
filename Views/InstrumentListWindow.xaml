@@ -116,7 +116,12 @@
                               Margin="0,0,0,5"/>
                     <TextBlock Text="Rynki: GPW (40), NewConnect (330), Catalyst (331), Structured Products (332)" 
                               FontSize="12" 
-                              Foreground="#666666"/>
+                              Foreground="#666666"
+                              Margin="0,0,0,5"/>
+                    <TextBlock Text="💡 Kliknij dwukrotnie na instrument aby zobaczyć szczegóły" 
+                              FontSize="11" 
+                              Foreground="#FF9800"
+                              FontStyle="Italic"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -240,7 +245,8 @@
                          HeadersVisibility="Column"
                          CanUserResizeRows="False"
                          CanUserReorderColumns="True"
-                         CanUserSortColumns="True">
+                         CanUserSortColumns="True"
+                         MouseDoubleClick="DataGrid_MouseDoubleClick">
                     
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="GLID" 
