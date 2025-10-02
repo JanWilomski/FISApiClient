@@ -5,9 +5,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:viewmodels="clr-namespace:Cross_FIS_API_1._2.ViewModels"
         mc:Ignorable="d"
-        Title="FIS API Client - Połączenie MDS/SLC" 
-        Height="600" 
-        Width="800"
+        Title="FIS API Client - Połączenie MDS/SLE" 
+        Height="650" 
+        Width="850"
         WindowStartupLocation="CenterScreen"
         Background="#F5F5F5">
     
@@ -17,19 +17,21 @@
 
     <Window.Resources>
         <!-- Modern TextBox Style -->
-        <Style x:Key="ModernTextBox" TargetType="TextBox">
+        <Style x:Key="CompactTextBox" TargetType="TextBox">
             <Setter Property="BorderBrush" Value="#DDDDDD"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Background" Value="White"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
                         <Border Background="{TemplateBinding Background}"
                                BorderBrush="{TemplateBinding BorderBrush}"
                                BorderThickness="{TemplateBinding BorderThickness}"
-                               CornerRadius="4">
+                               CornerRadius="3">
                             <ScrollViewer x:Name="PART_ContentHost" 
-                                         Margin="2"/>
+                                         Margin="{TemplateBinding Padding}"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -45,19 +47,51 @@
             </Setter>
         </Style>
 
-        <!-- Primary Button Style -->
-        <Style x:Key="PrimaryButton" TargetType="Button">
+        <!-- Modern PasswordBox Style -->
+        <Style x:Key="CompactPasswordBox" TargetType="PasswordBox">
+            <Setter Property="BorderBrush" Value="#DDDDDD"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border Background="{TemplateBinding Background}"
+                               BorderBrush="{TemplateBinding BorderBrush}"
+                               BorderThickness="{TemplateBinding BorderThickness}"
+                               CornerRadius="3">
+                            <ScrollViewer x:Name="PART_ContentHost" 
+                                         Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="BorderBrush" Value="#1976D2"/>
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter Property="BorderBrush" Value="#1976D2"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Button Styles -->
+        <Style x:Key="CompactButton" TargetType="Button">
             <Setter Property="Background" Value="#1976D2"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="12,6"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}"
-                               CornerRadius="6"
+                               CornerRadius="4"
                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                             VerticalAlignment="Center"/>
@@ -79,266 +113,282 @@
             </Setter>
         </Style>
 
-        <!-- Secondary Button Style -->
-        <Style x:Key="SecondaryButton" TargetType="Button">
+        <Style x:Key="DisconnectButton" TargetType="Button" BasedOn="{StaticResource CompactButton}">
             <Setter Property="Background" Value="#F44336"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#E53935"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#C62828"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ShowInstrumentsButton" TargetType="Button" BasedOn="{StaticResource CompactButton}">
+            <Setter Property="Background" Value="#4CAF50"/>
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                               CornerRadius="6"
-                               Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#E53935"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#C62828"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#CCCCCC"/>
-                                <Setter Property="Foreground" Value="#999999"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Padding" Value="16,8"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#43A047"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#388E3C"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
 
-    <Grid Margin="20">
+    <Grid Margin="15">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
         <Border Grid.Row="0" 
                 Background="White" 
-                CornerRadius="8" 
-                Padding="20"
-                Margin="0,0,0,20">
+                CornerRadius="6" 
+                Padding="15"
+                Margin="0,0,0,12">
             <Border.Effect>
-                <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="10" ShadowDepth="2"/>
+                <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="8" ShadowDepth="2"/>
             </Border.Effect>
             
             <StackPanel>
                 <TextBlock Text="FIS API Client" 
-                          FontSize="28" 
+                          FontSize="22" 
                           FontWeight="Bold"
                           Foreground="#1976D2"
-                          Margin="0,0,0,5"/>
-                <TextBlock Text="Połączenie z serwerem Market Data (MDS/SLC)" 
-                          FontSize="14" 
+                          Margin="0,0,0,3"/>
+                <TextBlock Text="Połączenie z serwerami Market Data (MDS) oraz Order Entry (SLE)" 
+                          FontSize="12" 
                           Foreground="#666666"/>
             </StackPanel>
         </Border>
 
         <!-- Main Content -->
-        <Border Grid.Row="1" 
-                Background="White" 
-                CornerRadius="8" 
-                Padding="30">
-            <Border.Effect>
-                <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="10" ShadowDepth="2"/>
-            </Border.Effect>
-            
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <!-- Connection Status -->
-                    <Border Background="{Binding ConnectionStatusColor}" 
-                            CornerRadius="6" 
-                            Padding="15,10"
-                            Margin="0,0,0,25">
-                        <StackPanel Orientation="Horizontal" 
-                                   HorizontalAlignment="Center">
-                            <Ellipse Width="12" 
-                                    Height="12" 
-                                    Fill="White" 
-                                    Margin="0,0,10,0"/>
-                            <TextBlock Text="{Binding ConnectionStatusText}" 
-                                      FontSize="14" 
-                                      FontWeight="SemiBold"
-                                      Foreground="White"/>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- MDS Connection -->
+            <Border Grid.Column="0"
+                    Background="White" 
+                    CornerRadius="6" 
+                    Padding="15">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="8" ShadowDepth="2"/>
+                </Border.Effect>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <!-- MDS Header -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock Text="📊 MDS" 
+                                      FontSize="16" 
+                                      FontWeight="Bold"
+                                      Foreground="#1976D2"
+                                      VerticalAlignment="Center"/>
+                            <TextBlock Text=" (Market Data)" 
+                                      FontSize="12" 
+                                      Foreground="#666666"
+                                      VerticalAlignment="Center"
+                                      Margin="3,0,0,0"/>
                         </StackPanel>
-                    </Border>
 
-                    <!-- Connection Form -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="140"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                        <!-- MDS Status -->
+                        <Border Background="{Binding MdsConnectionStatusColor}" 
+                                CornerRadius="4" 
+                                Padding="10,6"
+                                Margin="0,0,0,12">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Fill="White" Margin="0,0,6,0"/>
+                                <TextBlock Text="{Binding MdsConnectionStatusText}" 
+                                          FontSize="11" 
+                                          FontWeight="SemiBold"
+                                          Foreground="White"/>
+                            </StackPanel>
+                        </Border>
 
-                        <!-- IP Address -->
-                        <TextBlock Grid.Row="0" Grid.Column="0" 
-                                  Text="Adres IP:" 
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Foreground="#333333"
-                                  Margin="0,0,0,15"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" 
-                                Text="{Binding IpAddress, UpdateSourceTrigger=PropertyChanged}"
-                                IsEnabled="{Binding IsNotConnected}"
-                                Padding="10"
-                                FontSize="14"
-                                Margin="0,0,0,15"
-                                Style="{StaticResource ModernTextBox}"/>
+                        <!-- MDS Form -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="70"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
 
-                        <!-- Port -->
-                        <TextBlock Grid.Row="1" Grid.Column="0" 
-                                  Text="Port:" 
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Foreground="#333333"
-                                  Margin="0,0,0,15"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" 
-                                Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}"
-                                IsEnabled="{Binding IsNotConnected}"
-                                Padding="10"
-                                FontSize="14"
-                                Margin="0,0,0,15"
-                                Style="{StaticResource ModernTextBox}"/>
+                            <!-- IP -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="IP:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MdsIpAddress}" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
-                        <!-- User -->
-                        <TextBlock Grid.Row="2" Grid.Column="0" 
-                                  Text="Użytkownik:" 
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Foreground="#333333"
-                                  Margin="0,0,0,15"/>
-                        <TextBox Grid.Row="2" Grid.Column="1" 
-                                Text="{Binding User, UpdateSourceTrigger=PropertyChanged}"
-                                IsEnabled="{Binding IsNotConnected}"
-                                Padding="10"
-                                FontSize="14"
-                                Margin="0,0,0,15"
-                                Style="{StaticResource ModernTextBox}"/>
+                            <!-- Port -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding MdsPort}" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
-                        <!-- Password -->
-                        <TextBlock Grid.Row="3" Grid.Column="0" 
-                                  Text="Hasło:" 
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Foreground="#333333"
-                                  Margin="0,0,0,15"/>
-                        <PasswordBox Grid.Row="3" Grid.Column="1" 
-                                    x:Name="PasswordBox"
-                                    IsEnabled="{Binding IsNotConnected}"
-                                    Padding="10"
-                                    FontSize="14"
-                                    Margin="0,0,0,15"
-                                    PasswordChanged="PasswordBox_PasswordChanged"/>
+                            <!-- User -->
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="User:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MdsUser}" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
-                        <!-- Node -->
-                        <TextBlock Grid.Row="4" Grid.Column="0" 
-                                  Text="Node:" 
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Foreground="#333333"
-                                  Margin="0,0,0,15"/>
-                        <TextBox Grid.Row="4" Grid.Column="1" 
-                                Text="{Binding Node, UpdateSourceTrigger=PropertyChanged}"
-                                IsEnabled="{Binding IsNotConnected}"
-                                Padding="10"
-                                FontSize="14"
-                                Margin="0,0,0,15"
-                                Style="{StaticResource ModernTextBox}"/>
+                            <!-- Password -->
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Pass:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="MdsPasswordBox" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactPasswordBox}" Margin="0,0,0,8" PasswordChanged="MdsPasswordBox_PasswordChanged"/>
 
-                        <!-- Subnode -->
-                        <TextBlock Grid.Row="5" Grid.Column="0" 
-                                  Text="Subnode:" 
-                                  VerticalAlignment="Center"
-                                  FontWeight="SemiBold"
-                                  Foreground="#333333"/>
-                        <TextBox Grid.Row="5" Grid.Column="1" 
-                                Text="{Binding Subnode, UpdateSourceTrigger=PropertyChanged}"
-                                IsEnabled="{Binding IsNotConnected}"
-                                Padding="10"
-                                FontSize="14"
-                                Style="{StaticResource ModernTextBox}"/>
-                    </Grid>
+                            <!-- Node -->
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Node:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding MdsNode}" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
-                    <!-- Action Buttons -->
-                    <StackPanel Orientation="Vertical" 
-                               HorizontalAlignment="Center"
-                               Margin="0,30,0,0">
-                        <!-- Connection Buttons -->
-                        <StackPanel Orientation="Horizontal" 
-                                   HorizontalAlignment="Center"
-                                   Margin="0,0,0,15">
+                            <!-- Subnode -->
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Subnode:" VerticalAlignment="Center" FontSize="11" Foreground="#555"/>
+                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding MdsSubnode}" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactTextBox}"/>
+                        </Grid>
+
+                        <!-- MDS Buttons -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,15,0,0">
                             <Button Content="Połącz" 
-                                   Command="{Binding ConnectCommand}"
-                                   Width="140"
-                                   Height="45"
-                                   Margin="0,0,15,0"
-                                   Style="{StaticResource PrimaryButton}"/>
-                            
+                                   Command="{Binding ConnectMdsCommand}"
+                                   Style="{StaticResource CompactButton}"
+                                   Width="90"
+                                   Margin="0,0,8,0"/>
                             <Button Content="Rozłącz" 
-                                   Command="{Binding DisconnectCommand}"
-                                   Width="140"
-                                   Height="45"
-                                   Style="{StaticResource SecondaryButton}"/>
+                                   Command="{Binding DisconnectMdsCommand}"
+                                   Style="{StaticResource DisconnectButton}"
+                                   Width="90"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- SLE Connection -->
+            <Border Grid.Column="2"
+                    Background="White" 
+                    CornerRadius="6" 
+                    Padding="15">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="8" ShadowDepth="2"/>
+                </Border.Effect>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <!-- SLE Header -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock Text="📝 SLE" 
+                                      FontSize="16" 
+                                      FontWeight="Bold"
+                                      Foreground="#FF9800"
+                                      VerticalAlignment="Center"/>
+                            <TextBlock Text=" (Order Entry)" 
+                                      FontSize="12" 
+                                      Foreground="#666666"
+                                      VerticalAlignment="Center"
+                                      Margin="3,0,0,0"/>
                         </StackPanel>
 
-                        <!-- Instruments Button -->
-                        <Button x:Name="BtnInstruments"
-                               Content="📋 Lista instrumentów"
-                               Width="295"
-                               Height="45"
-                               FontSize="15"
-                               Click="BtnInstruments_Click"
-                               IsEnabled="{Binding IsConnected}"
-                               >
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
-                                    <Setter Property="Background" Value="#4CAF50"/>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="#43A047"/>
-                                        </Trigger>
-                                        <Trigger Property="IsPressed" Value="True">
-                                            <Setter Property="Background" Value="#388E3C"/>
-                                        </Trigger>
-                                        <Trigger Property="IsEnabled" Value="False">
-                                            <Setter Property="Background" Value="#CCCCCC"/>
-                                            <Setter Property="Foreground" Value="#999999"/>
-                                        </Trigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
+                        <!-- SLE Status -->
+                        <Border Background="{Binding SleConnectionStatusColor}" 
+                                CornerRadius="4" 
+                                Padding="10,6"
+                                Margin="0,0,0,12">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Fill="White" Margin="0,0,6,0"/>
+                                <TextBlock Text="{Binding SleConnectionStatusText}" 
+                                          FontSize="11" 
+                                          FontWeight="SemiBold"
+                                          Foreground="White"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- SLE Form -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="70"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- IP -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="IP:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SleIpAddress}" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
+
+                            <!-- Port -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SlePort}" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
+
+                            <!-- User -->
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="User:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SleUser}" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
+
+                            <!-- Password -->
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Pass:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="SlePasswordBox" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactPasswordBox}" Margin="0,0,0,8" PasswordChanged="SlePasswordBox_PasswordChanged"/>
+
+                            <!-- Node -->
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Node:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SleNode}" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
+
+                            <!-- Subnode -->
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Subnode:" VerticalAlignment="Center" FontSize="11" Foreground="#555"/>
+                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding SleSubnode}" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactTextBox}"/>
+                        </Grid>
+
+                        <!-- SLE Buttons -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,15,0,0">
+                            <Button Content="Połącz" 
+                                   Command="{Binding ConnectSleCommand}"
+                                   Style="{StaticResource CompactButton}"
+                                   Width="90"
+                                   Margin="0,0,8,0"/>
+                            <Button Content="Rozłącz" 
+                                   Command="{Binding DisconnectSleCommand}"
+                                   Style="{StaticResource DisconnectButton}"
+                                   Width="90"/>
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
-            </ScrollViewer>
-        </Border>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Show Instruments Button -->
+        <Button Grid.Row="2"
+               x:Name="BtnInstruments"
+               Content="📋 Lista instrumentów"
+               Click="BtnInstruments_Click"
+               IsEnabled="{Binding CanShowInstruments}"
+               Style="{StaticResource ShowInstrumentsButton}"
+               HorizontalAlignment="Center"
+               Width="250"
+               Height="38"
+               Margin="0,15,0,12"/>
 
         <!-- Status Bar -->
-        <Border Grid.Row="2" 
+        <Border Grid.Row="3" 
                 Background="#263238" 
-                CornerRadius="6" 
-                Padding="15,10"
-                Margin="0,20,0,0">
+                CornerRadius="4" 
+                Padding="12,8">
             <TextBlock Text="{Binding StatusMessage}" 
                       Foreground="White"
-                      FontSize="12"/>
+                      FontSize="11"/>
         </Border>
     </Grid>
 </Window>

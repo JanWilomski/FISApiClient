@@ -9,86 +9,170 @@ namespace Cross_FIS_API_1._2.ViewModels
     public class ConnectionViewModel : ViewModelBase
     {
         private readonly MdsConnectionService _mdsService;
+        private readonly SleConnectionService _sleService;
 
-        #region Properties
+        #region MDS Properties
 
-        private string _ipAddress = "192.168.45.25";
-        public string IpAddress
+        private string _mdsIpAddress = "192.168.45.25";
+        public string MdsIpAddress
         {
-            get => _ipAddress;
-            set => SetProperty(ref _ipAddress, value);
+            get => _mdsIpAddress;
+            set => SetProperty(ref _mdsIpAddress, value);
         }
 
-        private string _port = "25503";
-        public string Port
+        private string _mdsPort = "25503";
+        public string MdsPort
         {
-            get => _port;
-            set => SetProperty(ref _port, value);
+            get => _mdsPort;
+            set => SetProperty(ref _mdsPort, value);
         }
 
-        private string _user = "103";
-        public string User
+        private string _mdsUser = "103";
+        public string MdsUser
         {
-            get => _user;
-            set => SetProperty(ref _user, value);
+            get => _mdsUser;
+            set => SetProperty(ref _mdsUser, value);
         }
 
-        private string _password = "glglgl";
-        public string Password
+        private string _mdsPassword = "glglgl";
+        public string MdsPassword
         {
-            get => _password;
-            set => SetProperty(ref _password, value);
+            get => _mdsPassword;
+            set => SetProperty(ref _mdsPassword, value);
         }
 
-        private string _node = "5500";
-        public string Node
+        private string _mdsNode = "5500";
+        public string MdsNode
         {
-            get => _node;
-            set => SetProperty(ref _node, value);
+            get => _mdsNode;
+            set => SetProperty(ref _mdsNode, value);
         }
 
-        private string _subnode = "4500";
-        public string Subnode
+        private string _mdsSubnode = "4500";
+        public string MdsSubnode
         {
-            get => _subnode;
-            set => SetProperty(ref _subnode, value);
+            get => _mdsSubnode;
+            set => SetProperty(ref _mdsSubnode, value);
         }
 
-        private bool _isConnected;
-        public bool IsConnected
+        private bool _isMdsConnected;
+        public bool IsMdsConnected
         {
-            get => _isConnected;
+            get => _isMdsConnected;
             set
             {
-                if (SetProperty(ref _isConnected, value))
+                if (SetProperty(ref _isMdsConnected, value))
                 {
-                    OnPropertyChanged(nameof(IsNotConnected));
-                    OnPropertyChanged(nameof(ConnectionStatusText));
-                    OnPropertyChanged(nameof(ConnectionStatusColor));
-                    ConnectCommand.RaiseCanExecuteChanged();
-                    DisconnectCommand.RaiseCanExecuteChanged();
+                    OnPropertyChanged(nameof(IsMdsNotConnected));
+                    OnPropertyChanged(nameof(MdsConnectionStatusText));
+                    OnPropertyChanged(nameof(MdsConnectionStatusColor));
+                    OnPropertyChanged(nameof(CanShowInstruments));
+                    ConnectMdsCommand.RaiseCanExecuteChanged();
+                    DisconnectMdsCommand.RaiseCanExecuteChanged();
                 }
             }
         }
 
-        public bool IsNotConnected => !IsConnected;
+        public bool IsMdsNotConnected => !IsMdsConnected;
+        public string MdsConnectionStatusText => IsMdsConnected ? "Połączono" : "Rozłączono";
+        public string MdsConnectionStatusColor => IsMdsConnected ? "#4CAF50" : "#F44336";
 
-        public string ConnectionStatusText => IsConnected ? "Połączono" : "Rozłączono";
-        
-        public string ConnectionStatusColor => IsConnected ? "#4CAF50" : "#F44336";
-
-        private bool _isConnecting;
-        public bool IsConnecting
+        private bool _isMdsConnecting;
+        public bool IsMdsConnecting
         {
-            get => _isConnecting;
+            get => _isMdsConnecting;
             set
             {
-                if (SetProperty(ref _isConnecting, value))
+                if (SetProperty(ref _isMdsConnecting, value))
                 {
-                    ConnectCommand.RaiseCanExecuteChanged();
+                    ConnectMdsCommand.RaiseCanExecuteChanged();
                 }
             }
         }
+
+        #endregion
+
+        #region SLE Properties
+
+        private string _sleIpAddress = "192.168.45.25";
+        public string SleIpAddress
+        {
+            get => _sleIpAddress;
+            set => SetProperty(ref _sleIpAddress, value);
+        }
+
+        private string _slePort = "25504";
+        public string SlePort
+        {
+            get => _slePort;
+            set => SetProperty(ref _slePort, value);
+        }
+
+        private string _sleUser = "103";
+        public string SleUser
+        {
+            get => _sleUser;
+            set => SetProperty(ref _sleUser, value);
+        }
+
+        private string _slePassword = "glglgl";
+        public string SlePassword
+        {
+            get => _slePassword;
+            set => SetProperty(ref _slePassword, value);
+        }
+
+        private string _sleNode = "5500";
+        public string SleNode
+        {
+            get => _sleNode;
+            set => SetProperty(ref _sleNode, value);
+        }
+
+        private string _sleSubnode = "4500";
+        public string SleSubnode
+        {
+            get => _sleSubnode;
+            set => SetProperty(ref _sleSubnode, value);
+        }
+
+        private bool _isSleConnected;
+        public bool IsSleConnected
+        {
+            get => _isSleConnected;
+            set
+            {
+                if (SetProperty(ref _isSleConnected, value))
+                {
+                    OnPropertyChanged(nameof(IsSleNotConnected));
+                    OnPropertyChanged(nameof(SleConnectionStatusText));
+                    OnPropertyChanged(nameof(SleConnectionStatusColor));
+                    ConnectSleCommand.RaiseCanExecuteChanged();
+                    DisconnectSleCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        public bool IsSleNotConnected => !IsSleConnected;
+        public string SleConnectionStatusText => IsSleConnected ? "Połączono" : "Rozłączono";
+        public string SleConnectionStatusColor => IsSleConnected ? "#4CAF50" : "#F44336";
+
+        private bool _isSleConnecting;
+        public bool IsSleConnecting
+        {
+            get => _isSleConnecting;
+            set
+            {
+                if (SetProperty(ref _isSleConnecting, value))
+                {
+                    ConnectSleCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        #endregion
+
+        #region General Properties
 
         private string _statusMessage = "Gotowy do połączenia";
         public string StatusMessage
@@ -97,58 +181,75 @@ namespace Cross_FIS_API_1._2.ViewModels
             set => SetProperty(ref _statusMessage, value);
         }
 
+        public bool CanShowInstruments => IsMdsConnected;
+
         #endregion
 
         #region Commands
 
-        public RelayCommand ConnectCommand { get; }
-        public RelayCommand DisconnectCommand { get; }
+        public RelayCommand ConnectMdsCommand { get; }
+        public RelayCommand DisconnectMdsCommand { get; }
+        public RelayCommand ConnectSleCommand { get; }
+        public RelayCommand DisconnectSleCommand { get; }
 
         #endregion
 
         public ConnectionViewModel()
         {
             _mdsService = new MdsConnectionService();
+            _sleService = new SleConnectionService();
 
-            ConnectCommand = new RelayCommand(
-                async _ => await ConnectAsync(),
-                _ => !IsConnected && !IsConnecting
+            ConnectMdsCommand = new RelayCommand(
+                async _ => await ConnectMdsAsync(),
+                _ => !IsMdsConnected && !IsMdsConnecting
             );
 
-            DisconnectCommand = new RelayCommand(
-                _ => Disconnect(),
-                _ => IsConnected
+            DisconnectMdsCommand = new RelayCommand(
+                _ => DisconnectMds(),
+                _ => IsMdsConnected
+            );
+
+            ConnectSleCommand = new RelayCommand(
+                async _ => await ConnectSleAsync(),
+                _ => !IsSleConnected && !IsSleConnecting
+            );
+
+            DisconnectSleCommand = new RelayCommand(
+                _ => DisconnectSle(),
+                _ => IsSleConnected
             );
         }
 
-        private async Task ConnectAsync()
-        {
-            if (IsConnecting) return;
+        #region MDS Methods
 
-            if (!ValidateInputs())
+        private async Task ConnectMdsAsync()
+        {
+            if (IsMdsConnecting) return;
+
+            if (!ValidateMdsInputs())
             {
-                StatusMessage = "Błąd: Sprawdź poprawność danych wejściowych";
+                StatusMessage = "Błąd: Sprawdź poprawność danych wejściowych MDS";
                 return;
             }
 
-            IsConnecting = true;
+            IsMdsConnecting = true;
             StatusMessage = "Łączenie z serwerem MDS...";
 
             try
             {
                 bool success = await _mdsService.ConnectAndLoginAsync(
-                    IpAddress,
-                    int.Parse(Port),
-                    User,
-                    Password,
-                    Node,
-                    Subnode
+                    MdsIpAddress,
+                    int.Parse(MdsPort),
+                    MdsUser,
+                    MdsPassword,
+                    MdsNode,
+                    MdsSubnode
                 );
 
                 if (success)
                 {
-                    IsConnected = true;
-                    StatusMessage = $"Pomyślnie połączono z {IpAddress}:{Port}";
+                    IsMdsConnected = true;
+                    StatusMessage = $"Pomyślnie połączono z MDS ({MdsIpAddress}:{MdsPort})";
                     MessageBox.Show(
                         "Połączenie z serwerem MDS/SLC zostało nawiązane pomyślnie!",
                         "Sukces",
@@ -158,7 +259,7 @@ namespace Cross_FIS_API_1._2.ViewModels
                 }
                 else
                 {
-                    StatusMessage = "Błąd połączenia: Nieprawidłowe dane logowania lub serwer niedostępny";
+                    StatusMessage = "Błąd połączenia MDS: Nieprawidłowe dane logowania lub serwer niedostępny";
                     MessageBox.Show(
                         "Nie udało się połączyć z serwerem MDS/SLC.\nSprawdź dane połączenia i spróbuj ponownie.",
                         "Błąd połączenia",
@@ -169,9 +270,9 @@ namespace Cross_FIS_API_1._2.ViewModels
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Błąd: {ex.Message}";
+                StatusMessage = $"Błąd MDS: {ex.Message}";
                 MessageBox.Show(
-                    $"Wystąpił błąd podczas łączenia:\n{ex.Message}",
+                    $"Wystąpił błąd podczas łączenia z MDS:\n{ex.Message}",
                     "Błąd",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error
@@ -179,77 +280,166 @@ namespace Cross_FIS_API_1._2.ViewModels
             }
             finally
             {
-                IsConnecting = false;
+                IsMdsConnecting = false;
             }
         }
 
-        private void Disconnect()
+        private void DisconnectMds()
         {
             try
             {
                 _mdsService.Disconnect();
-                IsConnected = false;
-                StatusMessage = "Rozłączono z serwerem";
-                MessageBox.Show(
-                    "Rozłączono z serwerem MDS/SLC",
-                    "Informacja",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information
-                );
+                IsMdsConnected = false;
+                StatusMessage = "Rozłączono z serwerem MDS";
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Błąd podczas rozłączania: {ex.Message}";
-                MessageBox.Show(
-                    $"Wystąpił błąd podczas rozłączania:\n{ex.Message}",
-                    "Błąd",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error
-                );
+                StatusMessage = $"Błąd podczas rozłączania MDS: {ex.Message}";
             }
         }
 
-        private bool ValidateInputs()
+        private bool ValidateMdsInputs()
         {
-            if (string.IsNullOrWhiteSpace(IpAddress))
+            if (string.IsNullOrWhiteSpace(MdsIpAddress))
             {
-                MessageBox.Show("Adres IP nie może być pusty", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Adres IP MDS nie może być pusty", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
-            if (!int.TryParse(Port, out int port) || port <= 0 || port > 65535)
+            if (!int.TryParse(MdsPort, out int port) || port <= 0 || port > 65535)
             {
-                MessageBox.Show("Port musi być liczbą z zakresu 1-65535", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Port MDS musi być liczbą z zakresu 1-65535", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(User))
+            if (string.IsNullOrWhiteSpace(MdsUser))
             {
-                MessageBox.Show("Nazwa użytkownika nie może być pusta", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Nazwa użytkownika MDS nie może być pusta", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(Password))
+            if (string.IsNullOrWhiteSpace(MdsPassword))
             {
-                MessageBox.Show("Hasło nie może być puste", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(Node))
-            {
-                MessageBox.Show("Node nie może być pusty", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(Subnode))
-            {
-                MessageBox.Show("Subnode nie może być pusty", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Hasło MDS nie może być puste", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
             return true;
         }
 
+        #endregion
+
+        #region SLE Methods
+
+        private async Task ConnectSleAsync()
+        {
+            if (IsSleConnecting) return;
+
+            if (!ValidateSleInputs())
+            {
+                StatusMessage = "Błąd: Sprawdź poprawność danych wejściowych SLE";
+                return;
+            }
+
+            IsSleConnecting = true;
+            StatusMessage = "Łączenie z serwerem SLE...";
+
+            try
+            {
+                bool success = await _sleService.ConnectAndLoginAsync(
+                    SleIpAddress,
+                    int.Parse(SlePort),
+                    SleUser,
+                    SlePassword,
+                    SleNode,
+                    SleSubnode
+                );
+
+                if (success)
+                {
+                    IsSleConnected = true;
+                    StatusMessage = $"Pomyślnie połączono z SLE ({SleIpAddress}:{SlePort})";
+                    MessageBox.Show(
+                        "Połączenie z serwerem SLE (Order Entry) zostało nawiązane pomyślnie!\n\n" +
+                        "Teraz możesz składać zlecenia z poziomu szczegółów instrumentu.",
+                        "Sukces",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information
+                    );
+                }
+                else
+                {
+                    StatusMessage = "Błąd połączenia SLE: Nieprawidłowe dane logowania lub serwer niedostępny";
+                    MessageBox.Show(
+                        "Nie udało się połączyć z serwerem SLE.\nSprawdź dane połączenia i spróbuj ponownie.",
+                        "Błąd połączenia",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Błąd SLE: {ex.Message}";
+                MessageBox.Show(
+                    $"Wystąpił błąd podczas łączenia z SLE:\n{ex.Message}",
+                    "Błąd",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                );
+            }
+            finally
+            {
+                IsSleConnecting = false;
+            }
+        }
+
+        private void DisconnectSle()
+        {
+            try
+            {
+                _sleService.Disconnect();
+                IsSleConnected = false;
+                StatusMessage = "Rozłączono z serwerem SLE";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Błąd podczas rozłączania SLE: {ex.Message}";
+            }
+        }
+
+        private bool ValidateSleInputs()
+        {
+            if (string.IsNullOrWhiteSpace(SleIpAddress))
+            {
+                MessageBox.Show("Adres IP SLE nie może być pusty", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (!int.TryParse(SlePort, out int port) || port <= 0 || port > 65535)
+            {
+                MessageBox.Show("Port SLE musi być liczbą z zakresu 1-65535", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(SleUser))
+            {
+                MessageBox.Show("Nazwa użytkownika SLE nie może być pusta", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(SlePassword))
+            {
+                MessageBox.Show("Hasło SLE nie może być puste", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            return true;
+        }
+
+        #endregion
+
         public MdsConnectionService GetMdsService() => _mdsService;
+        public SleConnectionService GetSleService() => _sleService;
     }
 }

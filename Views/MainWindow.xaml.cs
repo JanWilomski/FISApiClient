@@ -10,18 +10,27 @@ namespace Cross_FIS_API_1._2
         {
             InitializeComponent();
             
-            // Ustaw domyślne hasło
+            // Ustaw domyślne hasła
             if (DataContext is ConnectionViewModel viewModel)
             {
-                PasswordBox.Password = viewModel.Password;
+                MdsPasswordBox.Password = viewModel.MdsPassword;
+                SlePasswordBox.Password = viewModel.SlePassword;
             }
         }
 
-        private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        private void MdsPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
             if (DataContext is ConnectionViewModel viewModel)
             {
-                viewModel.Password = ((PasswordBox)sender).Password;
+                viewModel.MdsPassword = ((PasswordBox)sender).Password;
+            }
+        }
+
+        private void SlePasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is ConnectionViewModel viewModel)
+            {
+                viewModel.SlePassword = ((PasswordBox)sender).Password;
             }
         }
 
