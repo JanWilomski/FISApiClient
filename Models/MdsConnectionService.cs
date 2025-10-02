@@ -25,6 +25,8 @@ namespace Cross_FIS_API_1._2.Models
         public bool IsConnected => _tcpClient?.Connected ?? false;
         public event Action<List<Instrument>>? InstrumentsReceived;
         public event Action<InstrumentDetails>? InstrumentDetailsReceived;
+        
+        private readonly List<byte> _receiveBuffer = new List<byte>();
 
         public async Task<bool> ConnectAndLoginAsync(string ipAddress, int port, string user, string password, string node, string subnode)
         {
@@ -73,26 +75,173 @@ namespace Cross_FIS_API_1._2.Models
         private async Task ListenForMessages()
         {
             if (_stream == null) return;
-            var buffer = new byte[32000];
+            var buffer = new byte[8192]; // Zmniejszony bufor do czytania
+    
+            Debug.WriteLine("[MDS] ListenForMessages started");
+    
             while (IsConnected)
             {
                 try
                 {
-                    if (_stream.DataAvailable)
+                    var bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length);
+            
+                    if (bytesRead > 0)
                     {
-                        var bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length);
-                        if (bytesRead > 0)
+                        Debug.WriteLine($"[MDS] Received {bytesRead} bytes from server");
+                
+                        // Dodaj odebrane dane do bufora
+                        for (int i = 0; i < bytesRead; i++)
                         {
-                            ProcessIncomingMessage(buffer, bytesRead);
+                            _receiveBuffer.Add(buffer[i]);
                         }
+                
+                        Debug.WriteLine($"[MDS] Total buffer size: {_receiveBuffer.Count} bytes");
+                
+                        // Przetwarzaj wszystkie kompletne wiadomości w buforze
+                        ProcessBufferedMessages();
                     }
-                    await Task.Delay(50);
+                    else
+                    {
+                        Debug.WriteLine("[MDS] Connection closed by server (0 bytes read)");
+                        Disconnect();
+                        break;
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Error in MDS ListenForMessages: {ex.Message}");
+                    Debug.WriteLine($"[MDS] Error in ListenForMessages: {ex.Message}");
                     Disconnect();
+                    break;
                 }
+            }
+    
+            Debug.WriteLine("[MDS] ListenForMessages stopped");
+        }
+        
+        private void ProcessBufferedMessages()
+        {
+            while (_receiveBuffer.Count >= 3) // Minimum: 2 bajty długości + STX
+            {
+                // NOWE: Pokaż pierwsze bajty bufora jako hex
+                int bytesToShow = Math.Min(30, _receiveBuffer.Count);
+                string hexDump = string.Join(" ", _receiveBuffer.Take(bytesToShow).Select(b => b.ToString("X2")));
+                Debug.WriteLine($"[MDS] Buffer first {bytesToShow} bytes: {hexDump}");
+                
+                // NOWA LOGIKA: Szukaj wzorca [DŁUGOŚĆ_LOW] [DŁUGOŚĆ_HIGH] [STX]
+                bool foundValidMessage = false;
+                int messageStart = -1;
+                int totalMessageLength = 0;
+                
+                for (int i = 0; i <= _receiveBuffer.Count - 3; i++)
+                {
+                    // Sprawdź czy na pozycji i+2 jest STX
+                    if (_receiveBuffer[i + 2] == Stx)
+                    {
+                        // Oblicz długość z bajtów na pozycji i i i+1
+                        int length = _receiveBuffer[i] + 256 * _receiveBuffer[i + 1];
+                        
+                        // Walidacja długości (rozsądne wartości dla FIS API)
+                        if (length >= 35 && length <= 30000)
+                        {
+                            Debug.WriteLine($"[MDS] Found valid message pattern at position {i}:");
+                            Debug.WriteLine($"[MDS]   Length bytes: {_receiveBuffer[i]:X2} {_receiveBuffer[i + 1]:X2} = {length}");
+                            Debug.WriteLine($"[MDS]   STX at position: {i + 2}");
+                            
+                            messageStart = i;
+                            totalMessageLength = length;
+                            foundValidMessage = true;
+                            break;
+                        }
+                        else
+                        {
+                            Debug.WriteLine($"[MDS] Found STX at {i + 2} but invalid length {length}, continuing search...");
+                        }
+                    }
+                }
+                
+                if (!foundValidMessage)
+                {
+                    Debug.WriteLine("[MDS] No valid message pattern found in buffer");
+                    
+                    // Usuń pierwszy bajt i spróbuj ponownie
+                    if (_receiveBuffer.Count > 0)
+                    {
+                        Debug.WriteLine($"[MDS] Removing first byte: {_receiveBuffer[0]:X2}");
+                        _receiveBuffer.RemoveAt(0);
+                    }
+                    
+                    // Jeśli bufor ma więcej niż 100 bajtów bez valid message, wyczyść go
+                    if (_receiveBuffer.Count > 100)
+                    {
+                        Debug.WriteLine("[MDS] Buffer too large without valid message, clearing");
+                        _receiveBuffer.Clear();
+                    }
+                    
+                    return;
+                }
+                
+                Debug.WriteLine($"[MDS] Message starts at position {messageStart}, total length: {totalMessageLength}");
+                Debug.WriteLine($"[MDS] Buffer has {_receiveBuffer.Count} bytes, need {messageStart + totalMessageLength}");
+                
+                // Sprawdź czy mamy całą wiadomość
+                if (messageStart + totalMessageLength > _receiveBuffer.Count)
+                {
+                    int needed = messageStart + totalMessageLength - _receiveBuffer.Count;
+                    Debug.WriteLine($"[MDS] Incomplete message: need {needed} more bytes");
+                    return; // Czekaj na więcej danych
+                }
+                
+                Debug.WriteLine("[MDS] Complete message received, processing...");
+                
+                // Wyciągnij całą wiadomość (z bajtami długości)
+                byte[] messageBytes = _receiveBuffer.GetRange(messageStart, totalMessageLength).ToArray();
+                
+                // Pokaż początek wiadomości
+                int msgHexLen = Math.Min(50, messageBytes.Length);
+                string msgHex = string.Join(" ", messageBytes.Take(msgHexLen).Select(b => b.ToString("X2")));
+                Debug.WriteLine($"[MDS] Message first {msgHexLen} bytes: {msgHex}");
+                
+                // Przetwórz wiadomość (STX jest na pozycji 2 w messageBytes)
+                ProcessSingleMessage(messageBytes, totalMessageLength, 2);
+                
+                // Usuń przetworzoną wiadomość z bufora
+                _receiveBuffer.RemoveRange(0, messageStart + totalMessageLength);
+                
+                Debug.WriteLine($"[MDS] Message processed, remaining buffer: {_receiveBuffer.Count} bytes");
+            }
+        }
+        
+        private void ProcessSingleMessage(byte[] response, int length, int stxPos)
+        {
+            Debug.WriteLine($"[MDS] ProcessSingleMessage: length={length}, stxPos={stxPos}");
+    
+            try
+            {
+                string requestNumberStr = Encoding.ASCII.GetString(response, stxPos + 24, 5);
+                if (int.TryParse(requestNumberStr, out int requestNumber))
+                {
+                    Debug.WriteLine($"[MDS] Received response with request number: {requestNumber}");
+            
+                    switch(requestNumber)
+                    {
+                        case 5108:
+                            ProcessDictionaryResponse(response, length, stxPos);
+                            break;
+                        case 1000: 
+                        case 1001:
+                        case 1003:
+                            Debug.WriteLine($"[MDS] Processing instrument details response (request {requestNumber})");
+                            ProcessInstrumentDetailsResponse(response, length, stxPos);
+                            break;
+                        default:
+                            Debug.WriteLine($"[MDS] Unhandled request number: {requestNumber}");
+                            break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MDS] Error processing message: {ex.Message}");
             }
         }
 
@@ -131,14 +280,28 @@ namespace Cross_FIS_API_1._2.Models
 
         public async Task RequestInstrumentDetails(string glidAndStockcode)
         {
-            if (!IsConnected || _stream == null) return;
-            
-            Debug.WriteLine($"[MDS] Requesting instrument details for: {glidAndStockcode}");
-            
+            if (!IsConnected || _stream == null)
+            {
+                Debug.WriteLine("[MDS] Cannot request details - not connected");
+                return;
+            }
+    
+            Debug.WriteLine($"[MDS] === SENDING REQUEST ===");
+            Debug.WriteLine($"[MDS] Requesting instrument details for: '{glidAndStockcode}'");
+    
+            // NOWE: Wyczyść bufor przed nowym requestem (opcjonalne, ale bezpieczniejsze)
+            // _receiveBuffer.Clear();
+            // Debug.WriteLine($"[MDS] Receive buffer cleared");
+    
             byte[] request = BuildStockWatchRequest(glidAndStockcode);
+    
+            Debug.WriteLine($"[MDS] Request built, size: {request.Length} bytes");
+    
             await _stream.WriteAsync(request, 0, request.Length);
-            
-            Debug.WriteLine($"[MDS] Request sent for: {glidAndStockcode}");
+            await _stream.FlushAsync();
+    
+            Debug.WriteLine($"[MDS] Request sent and flushed");
+            Debug.WriteLine($"[MDS] === REQUEST COMPLETE ===");
         }
 
         private void ProcessIncomingMessage(byte[] response, int length)
@@ -152,6 +315,7 @@ namespace Cross_FIS_API_1._2.Models
                 if (stxPos < 2)
                 {
                     Debug.WriteLine("MDS: Incomplete message fragment (STX at pos < 2). Skipping.");
+                    
                     currentPos = stxPos + 1;
                     continue;
                 }
@@ -235,10 +399,11 @@ namespace Cross_FIS_API_1._2.Models
                 var details = new InstrumentDetails();
 
                 byte chaining = response[pos++];
+                Debug.WriteLine($"[MDS] === PARSING INSTRUMENT DETAILS ===");
+                Debug.WriteLine($"[MDS] Chaining: {chaining}");
 
                 details.GlidAndSymbol = DecodeField(response, ref pos);
-                
-                Debug.WriteLine($"[MDS] Decoded GlidAndSymbol: '{details.GlidAndSymbol}'");
+                Debug.WriteLine($"[MDS] GlidAndSymbol: '{details.GlidAndSymbol}'");
                 
                 if (string.IsNullOrEmpty(details.GlidAndSymbol))
                 {
@@ -247,97 +412,107 @@ namespace Cross_FIS_API_1._2.Models
                 }
 
                 // Pomiń 7 bajtów
+                Debug.WriteLine($"[MDS] Position before skip: {pos}, skipping 7 bytes");
                 pos += 7;
+                Debug.WriteLine($"[MDS] Position after skip: {pos}");
 
-                // Parsowanie pól
-                for (int fieldNumber = 0; fieldNumber <= 140; fieldNumber++)
+                // NOWE: Zbierz WSZYSTKIE pola do listy
+                var allFields = new List<string>();
+                while (pos < length && response[pos] != Etx)
                 {
-                    if (pos >= length || response[pos] == Etx)
-                    {
-                        break;
-                    }
-            
                     string fieldValue = DecodeField(response, ref pos);
-
-                    switch (fieldNumber)
+                    allFields.Add(fieldValue);
+                    
+                    // Zabezpieczenie
+                    if (allFields.Count > 200)
                     {
-                        case 0: 
-                            details.BidQuantity = ParseLong(fieldValue);
-                            if (details.BidQuantity > 0)
-                                Debug.WriteLine($"[MDS] BidQuantity: {details.BidQuantity}");
-                            break;
-                        case 1: 
-                            details.BidPrice = ParseDecimal(fieldValue);
-                            if (details.BidPrice > 0)
-                                Debug.WriteLine($"[MDS] BidPrice: {details.BidPrice}");
-                            break;
-                        case 2: 
-                            details.AskPrice = ParseDecimal(fieldValue);
-                            if (details.AskPrice > 0)
-                                Debug.WriteLine($"[MDS] AskPrice: {details.AskPrice}");
-                            break;
-                        case 3: 
-                            details.AskQuantity = ParseLong(fieldValue);
-                            if (details.AskQuantity > 0)
-                                Debug.WriteLine($"[MDS] AskQuantity: {details.AskQuantity}");
-                            break;
-                        case 4: 
-                            details.LastPrice = ParseDecimal(fieldValue);
-                            if (details.LastPrice > 0)
-                                Debug.WriteLine($"[MDS] LastPrice: {details.LastPrice}");
-                            break;
-                        case 5: 
-                            details.LastQuantity = ParseLong(fieldValue);
-                            break;
-                        case 6: 
-                            details.LastTradeTime = fieldValue;
-                            break;
-                        case 8: 
-                            details.PercentageVariation = ParseDecimal(fieldValue);
-                            break;
-                        case 9: 
-                            details.Volume = ParseLong(fieldValue);
-                            if (details.Volume > 0)
-                                Debug.WriteLine($"[MDS] Volume: {details.Volume}");
-                            break;
-                        case 10: 
-                            details.OpenPrice = ParseDecimal(fieldValue);
-                            break;
-                        case 11: 
-                            details.HighPrice = ParseDecimal(fieldValue);
-                            break;
-                        case 12: 
-                            details.LowPrice = ParseDecimal(fieldValue);
-                            break;
-                        case 13: 
-                            details.SuspensionIndicator = fieldValue;
-                            break;
-                        case 14: 
-                            details.VariationSign = fieldValue;
-                            break;
-                        case 16: 
-                            details.ClosePrice = ParseDecimal(fieldValue);
-                            break;
-                        case 88: 
-                            details.ISIN = fieldValue;
-                            break;
-                        case 140: 
-                            details.TradingPhase = fieldValue;
-                            break;
-                        default:
-                            break;
+                        Debug.WriteLine("[MDS] Too many fields, breaking");
+                        break;
                     }
                 }
 
-                Debug.WriteLine($"[MDS] Invoking InstrumentDetailsReceived event for: {details.GlidAndSymbol}");
-                Debug.WriteLine($"[MDS] LastPrice: {details.LastPrice}, BidPrice: {details.BidPrice}, AskPrice: {details.AskPrice}");
+                Debug.WriteLine($"[MDS] Total fields decoded: {allFields.Count}");
                 
+                // Wypisz wszystkie niepuste pola
+                for (int i = 0; i < allFields.Count; i++)
+                {
+                    if (!string.IsNullOrEmpty(allFields[i]))
+                    {
+                        Debug.WriteLine($"[MDS] Field[{i}] = '{allFields[i]}'");
+                    }
+                }
+
+                // Teraz parsuj znane pola
+                if (allFields.Count > 0) details.BidQuantity = ParseLong(allFields[0]);
+                if (allFields.Count > 1) details.BidPrice = ParseDecimal(allFields[1]);
+                if (allFields.Count > 2) details.AskPrice = ParseDecimal(allFields[2]);
+                if (allFields.Count > 3) details.AskQuantity = ParseLong(allFields[3]);
+                if (allFields.Count > 4) details.LastPrice = ParseDecimal(allFields[4]);
+                if (allFields.Count > 5) details.LastQuantity = ParseLong(allFields[5]);
+                if (allFields.Count > 6)
+                {
+                    details.LastTradeTime = FormatTime(allFields[6]);
+                    Debug.WriteLine($"[MDS] LastTradeTime: raw='{allFields[6]}' formatted='{details.LastTradeTime}'");
+                }
+                // Field 7 - skip
+                if (allFields.Count > 8) details.PercentageVariation = ParseDecimal(allFields[8]);
+                if (allFields.Count > 9) details.Volume = ParseLong(allFields[9]);
+                if (allFields.Count > 10) details.OpenPrice = ParseDecimal(allFields[10]);
+                if (allFields.Count > 11) details.HighPrice = ParseDecimal(allFields[11]);
+                if (allFields.Count > 12) details.LowPrice = ParseDecimal(allFields[12]);
+                if (allFields.Count > 13) details.SuspensionIndicator = allFields[13];
+                if (allFields.Count > 14) details.VariationSign = allFields[14];
+                // Field 15 - skip
+                if (allFields.Count > 16) details.ClosePrice = ParseDecimal(allFields[16]);
+                
+                // Szukaj ISIN i TradingPhase w dalszych polach
+                if (allFields.Count > 88) details.ISIN = allFields[88];
+                if (allFields.Count > 140) details.TradingPhase = allFields[140];
+
+                Debug.WriteLine($"[MDS] Parsed values:");
+                Debug.WriteLine($"[MDS]   BidPrice={details.BidPrice}, AskPrice={details.AskPrice}, LastPrice={details.LastPrice}");
+                Debug.WriteLine($"[MDS]   OpenPrice={details.OpenPrice}, HighPrice={details.HighPrice}, LowPrice={details.LowPrice}, ClosePrice={details.ClosePrice}");
+                Debug.WriteLine($"[MDS]   Volume={details.Volume}, PercentageVariation={details.PercentageVariation}");
+                Debug.WriteLine($"[MDS] === PARSING COMPLETE ===");
+
                 InstrumentDetailsReceived?.Invoke(details);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[MDS] Failed to parse instrument details: {ex.Message}");
                 Debug.WriteLine($"[MDS] Stack trace: {ex.StackTrace}");
+            }
+        }
+        
+        private string FormatTime(string rawTime)
+        {
+            if (string.IsNullOrEmpty(rawTime)) return string.Empty;
+    
+            try
+            {
+                // Format: HHMMSS.microseconds lub HHMMSSmmm
+                // Przykład: "95018.825883" = 09:50:18
+        
+                // Usuń część po kropce (mikrosekundy)
+                string timePart = rawTime.Split('.')[0];
+        
+                // Pad do 6 cyfr jeśli krótsza
+                timePart = timePart.PadLeft(6, '0');
+        
+                if (timePart.Length >= 6)
+                {
+                    string hours = timePart.Substring(0, 2);
+                    string minutes = timePart.Substring(2, 2);
+                    string seconds = timePart.Substring(4, 2);
+            
+                    return $"{hours}:{minutes}:{seconds}";
+                }
+        
+                return rawTime; // Zwróć oryginalny jeśli nie pasuje
+            }
+            catch
+            {
+                return rawTime;
             }
         }
 
@@ -440,4 +615,7 @@ namespace Cross_FIS_API_1._2.Models
 
         #endregion
     }
+    
+    
 }
+

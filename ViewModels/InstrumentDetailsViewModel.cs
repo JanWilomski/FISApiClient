@@ -301,36 +301,47 @@ namespace Cross_FIS_API_1._2.ViewModels
         private void OnInstrumentDetailsReceived(InstrumentDetails details)
         {
             // Debug - sprawdź co przyszło
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Received details for: '{details.GlidAndSymbol}'");
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Expected GLID: '{_instrument.Glid}'");
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Expected Symbol: '{_instrument.Symbol}'");
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] ========== RECEIVED DETAILS ==========");
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] Received GlidAndSymbol: '{details.GlidAndSymbol}' (Length: {details.GlidAndSymbol.Length})");
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] Expected GLID: '{_instrument.Glid}' (Length: {_instrument.Glid.Length})");
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] Expected Symbol: '{_instrument.Symbol}' (Length: {_instrument.Symbol.Length})");
             
-            string expectedGlidAndSymbol = _instrument.Glid + _instrument.Symbol;
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Expected full: '{expectedGlidAndSymbol}'");
+            // Wyciągnij GLID i Symbol z odpowiedzi
+            string receivedGlid = details.GlidAndSymbol.Length >= 12 
+                ? details.GlidAndSymbol.Substring(0, 12) 
+                : details.GlidAndSymbol;
             
-            // Sprawdź czy to dane dla tego instrumentu
-            // Porównanie: czy GlidAndSymbol zaczyna się od naszego GLID
-            if (!details.GlidAndSymbol.StartsWith(_instrument.Glid))
+            string receivedSymbol = details.GlidAndSymbol.Length > 12 
+                ? details.GlidAndSymbol.Substring(12) 
+                : "";
+            
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] Parsed received GLID: '{receivedGlid}'");
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] Parsed received Symbol: '{receivedSymbol}'");
+            
+            // Porównaj GLID (z uwzględnieniem białych znaków i wielkości liter)
+            bool glidMatches = receivedGlid.Trim().Equals(_instrument.Glid.Trim(), StringComparison.OrdinalIgnoreCase);
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] GLID matches: {glidMatches}");
+            
+            if (!glidMatches)
             {
                 System.Diagnostics.Debug.WriteLine($"[ViewModel] GLID mismatch - ignoring");
+                System.Diagnostics.Debug.WriteLine($"[ViewModel] =====================================");
                 return;
             }
             
-            // Wyciągnij symbol z odpowiedzi (po GLID)
-            string receivedSymbol = details.GlidAndSymbol.Length > 12 
-                ? details.GlidAndSymbol.Substring(12).Trim() 
-                : "";
-            
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Received symbol: '{receivedSymbol}'");
-            
             // Porównaj symbole (ignorując wielkość liter i białe znaki)
-            if (!receivedSymbol.Equals(_instrument.Symbol.Trim(), StringComparison.OrdinalIgnoreCase))
+            bool symbolMatches = receivedSymbol.Trim().Equals(_instrument.Symbol.Trim(), StringComparison.OrdinalIgnoreCase);
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] Symbol matches: {symbolMatches}");
+            
+            if (!symbolMatches)
             {
                 System.Diagnostics.Debug.WriteLine($"[ViewModel] Symbol mismatch - ignoring");
+                System.Diagnostics.Debug.WriteLine($"[ViewModel] =====================================");
                 return;
             }
 
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Match found! Updating UI...");
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] ✓ MATCH FOUND! Updating UI...");
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] =====================================");
             
             // Uruchom na wątku UI
             Application.Current.Dispatcher.Invoke(() =>
@@ -352,12 +363,28 @@ namespace Cross_FIS_API_1._2.ViewModels
             LastPrice = Details.LastPrice > 0 ? Details.LastPrice.ToString("N2") : "-";
             LastQuantity = Details.LastQuantity > 0 ? Details.LastQuantity.ToString("N0") : "-";
             LastTradeTime = !string.IsNullOrEmpty(Details.LastTradeTime) ? Details.LastTradeTime : "-";
-            Volume = Details.Volume > 0 ? Details.Volume.ToString("N0") : "-";
-            OpenPrice = Details.OpenPrice > 0 ? Details.OpenPrice.ToString("N2") : "-";
-            HighPrice = Details.HighPrice > 0 ? Details.HighPrice.ToString("N2") : "-";
-            LowPrice = Details.LowPrice > 0 ? Details.LowPrice.ToString("N2") : "-";
-            ClosePrice = Details.ClosePrice > 0 ? Details.ClosePrice.ToString("N2") : "-";
-            TradingPhase = !string.IsNullOrEmpty(Details.TradingPhase) ? Details.TradingPhase : "-";
+            Volume = Details.Volume > 0 ? Details.Volume.ToString("N0") : "Brak danych";
+            
+            // Sprawdź czy mamy dane OHLC
+            bool hasOHLC = Details.OpenPrice > 0 || Details.HighPrice > 0 || 
+                           Details.LowPrice > 0 || Details.ClosePrice > 0;
+            
+            if (hasOHLC)
+            {
+                OpenPrice = Details.OpenPrice > 0 ? Details.OpenPrice.ToString("N2") : "-";
+                HighPrice = Details.HighPrice > 0 ? Details.HighPrice.ToString("N2") : "-";
+                LowPrice = Details.LowPrice > 0 ? Details.LowPrice.ToString("N2") : "-";
+                ClosePrice = Details.ClosePrice > 0 ? Details.ClosePrice.ToString("N2") : "-";
+            }
+            else
+            {
+                OpenPrice = "Brak danych";
+                HighPrice = "Brak danych";
+                LowPrice = "Brak danych";
+                ClosePrice = "Brak danych";
+            }
+            
+            TradingPhase = !string.IsNullOrEmpty(Details.TradingPhase) ? Details.TradingPhase : "Nieznana";
             SuspensionIndicator = !string.IsNullOrEmpty(Details.SuspensionIndicator) ? Details.SuspensionIndicator : "-";
 
             // Formatowanie zmiany procentowej
@@ -366,7 +393,6 @@ namespace Cross_FIS_API_1._2.ViewModels
                 string sign = Details.VariationSign == "+" ? "+" : Details.VariationSign == "-" ? "-" : "";
                 PercentageVariation = $"{sign}{Details.PercentageVariation:N2}%";
                 
-                // Kolor w zależności od znaku
                 VariationColor = Details.VariationSign == "+" ? "#4CAF50" : 
                                 Details.VariationSign == "-" ? "#F44336" : "#666666";
             }
