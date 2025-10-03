@@ -8,6 +8,7 @@ namespace Cross_FIS_API_1._2.ViewModels
     public class InstrumentDetailsViewModel : ViewModelBase
     {
         private readonly MdsConnectionService _mdsService;
+        private readonly SleConnectionService _sleService;
         private readonly Instrument _instrument;
         private bool _isRequestInProgress = false;
 
@@ -181,19 +182,98 @@ namespace Cross_FIS_API_1._2.ViewModels
 
         #endregion
 
+        #region Order Entry Properties
+
+        private bool _isBuy = true;
+        public bool IsBuy
+        {
+            get => _isBuy;
+            set
+            {
+                if (SetProperty(ref _isBuy, value))
+                {
+                    OnPropertyChanged(nameof(IsSell));
+                }
+            }
+        }
+
+        public bool IsSell
+        {
+            get => !_isBuy;
+            set => IsBuy = !value;
+        }
+
+        private string _orderQuantity = "100";
+        public string OrderQuantity
+        {
+            get => _orderQuantity;
+            set => SetProperty(ref _orderQuantity, value);
+        }
+
+        private string _orderPrice = "";
+        public string OrderPrice
+        {
+            get => _orderPrice;
+            set => SetProperty(ref _orderPrice, value);
+        }
+
+        private string _selectedModality = "L";
+        public string SelectedModality
+        {
+            get => _selectedModality;
+            set
+            {
+                if (SetProperty(ref _selectedModality, value))
+                {
+                    OnPropertyChanged(nameof(IsPriceEnabled));
+                    SendOrderCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        private string _selectedValidity = "J";
+        public string SelectedValidity
+        {
+            get => _selectedValidity;
+            set => SetProperty(ref _selectedValidity, value);
+        }
+
+        public bool IsPriceEnabled => SelectedModality == "L";
+
+        public bool IsSleConnected => _sleService?.IsConnected ?? false;
+
+        private bool _isSendingOrder;
+        public bool IsSendingOrder
+        {
+            get => _isSendingOrder;
+            set
+            {
+                if (SetProperty(ref _isSendingOrder, value))
+                {
+                    SendOrderCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        #endregion
+
         #region Commands
 
         public RelayCommand RefreshCommand { get; }
         public RelayCommand CloseCommand { get; }
+        public RelayCommand SendOrderCommand { get; }
+        public RelayCommand QuickBuyCommand { get; }
+        public RelayCommand QuickSellCommand { get; }
 
         #endregion
 
         public event Action? RequestClose;
 
-        public InstrumentDetailsViewModel(Instrument instrument, MdsConnectionService mdsService)
+        public InstrumentDetailsViewModel(Instrument instrument, MdsConnectionService mdsService, SleConnectionService sleService)
         {
             _instrument = instrument ?? throw new ArgumentNullException(nameof(instrument));
             _mdsService = mdsService ?? throw new ArgumentNullException(nameof(mdsService));
+            _sleService = sleService ?? throw new ArgumentNullException(nameof(sleService));
 
             RefreshCommand = new RelayCommand(
                 async _ => await LoadDetailsAsync(),
@@ -205,11 +285,200 @@ namespace Cross_FIS_API_1._2.ViewModels
                 _ => true
             );
 
+            SendOrderCommand = new RelayCommand(
+                async _ => await SendOrderAsync(),
+                _ => CanSendOrder()
+            );
+
+            QuickBuyCommand = new RelayCommand(
+                async _ => await QuickOrder(true),
+                _ => IsSleConnected && !IsSendingOrder && Details != null && Details.AskPrice > 0
+            );
+
+            QuickSellCommand = new RelayCommand(
+                async _ => await QuickOrder(false),
+                _ => IsSleConnected && !IsSendingOrder && Details != null && Details.BidPrice > 0
+            );
+
             // Podpięcie eventu
             _mdsService.InstrumentDetailsReceived += OnInstrumentDetailsReceived;
 
             // Automatyczne załadowanie danych
             _ = LoadDetailsAsync();
+        }
+
+        private bool CanSendOrder()
+        {
+            if (!IsSleConnected || IsSendingOrder)
+                return false;
+
+            if (string.IsNullOrWhiteSpace(OrderQuantity))
+                return false;
+
+            if (!long.TryParse(OrderQuantity, out long qty) || qty <= 0)
+                return false;
+
+            // Sprawdź cenę tylko dla Limit orders
+            if (SelectedModality == "L")
+            {
+                if (string.IsNullOrWhiteSpace(OrderPrice))
+                    return false;
+
+                if (!decimal.TryParse(OrderPrice, System.Globalization.NumberStyles.Any, 
+                    System.Globalization.CultureInfo.InvariantCulture, out decimal price) || price <= 0)
+                    return false;
+            }
+
+            return true;
+        }
+
+        private async System.Threading.Tasks.Task SendOrderAsync()
+        {
+            if (!CanSendOrder())
+            {
+                MessageBox.Show(
+                    "Sprawdź poprawność parametrów zlecenia",
+                    "Błąd walidacji",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning
+                );
+                return;
+            }
+
+            if (!_sleService.IsConnected)
+            {
+                MessageBox.Show(
+                    "Brak połączenia z serwerem SLE!\nPołącz się z serwerem Order Entry przed wysłaniem zlecenia.",
+                    "Błąd",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                );
+                return;
+            }
+
+            // Potwierdzenie zlecenia
+            string sideText = IsBuy ? "KUPNO" : "SPRZEDAŻ";
+            string modalityText = SelectedModality == "L" ? "Limit" : 
+                                 SelectedModality == "B" ? "At Best" : "Market";
+            string priceText = SelectedModality == "L" ? $" po cenie {OrderPrice}" : "";
+            
+            var result = MessageBox.Show(
+                $"Czy na pewno chcesz wysłać zlecenie?\n\n" +
+                $"Instrument: {Symbol} ({Name})\n" +
+                $"Typ: {sideText}\n" +
+                $"Ilość: {OrderQuantity}\n" +
+                $"Modalność: {modalityText}{priceText}\n" +
+                $"Ważność: {GetValidityDescription(SelectedValidity)}\n\n" +
+                $"GLID: {Glid}",
+                "Potwierdzenie zlecenia",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question
+            );
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            IsSendingOrder = true;
+            StatusMessage = "Wysyłanie zlecenia...";
+
+            try
+            {
+                long quantity = long.Parse(OrderQuantity);
+                decimal price = SelectedModality == "L" ? 
+                    decimal.Parse(OrderPrice, System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture) : 0;
+
+                int side = IsBuy ? 0 : 1;
+                string glidAndSymbol = Glid + Symbol;
+
+                bool success = await _sleService.SendOrderAsync(
+                    glidAndSymbol,
+                    side,
+                    quantity,
+                    SelectedModality,
+                    price,
+                    SelectedValidity,
+                    "", // clientReference
+                    "" // internalReference
+                );
+
+                if (success)
+                {
+                    StatusMessage = "✓ Zlecenie wysłane pomyślnie";
+                    MessageBox.Show(
+                        $"Zlecenie zostało wysłane do serwera SLE.\n\n" +
+                        $"Szczegóły:\n" +
+                        $"- Instrument: {Symbol}\n" +
+                        $"- Strona: {sideText}\n" +
+                        $"- Ilość: {quantity}\n" +
+                        $"- Cena: {(price > 0 ? price.ToString("N2") : "Market")}\n\n" +
+                        $"Oczekuj na potwierdzenie w systemie real-time (request 2019).",
+                        "Zlecenie wysłane",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information
+                    );
+                }
+                else
+                {
+                    StatusMessage = "✗ Błąd wysyłania zlecenia";
+                    MessageBox.Show(
+                        "Nie udało się wysłać zlecenia.\nSprawdź połączenie z serwerem SLE.",
+                        "Błąd",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"✗ Błąd: {ex.Message}";
+                MessageBox.Show(
+                    $"Wystąpił błąd podczas wysyłania zlecenia:\n{ex.Message}",
+                    "Błąd",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                );
+            }
+            finally
+            {
+                IsSendingOrder = false;
+            }
+        }
+
+        private async System.Threading.Tasks.Task QuickOrder(bool isBuy)
+        {
+            if (Details == null) return;
+
+            // Ustaw parametry quick order
+            IsBuy = isBuy;
+            SelectedModality = "L";
+            
+            // Użyj Ask price dla buy, Bid price dla sell
+            if (isBuy && Details.AskPrice > 0)
+            {
+                OrderPrice = Details.AskPrice.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
+            }
+            else if (!isBuy && Details.BidPrice > 0)
+            {
+                OrderPrice = Details.BidPrice.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            // Wyślij zlecenie
+            await SendOrderAsync();
+        }
+
+        private string GetValidityDescription(string validity)
+        {
+            return validity switch
+            {
+                "J" => "Day (dzień)",
+                "K" => "FOK (Fill or Kill)",
+                "E" => "E&E (Execute & Eliminate)",
+                "R" => "GTC (Good Till Cancelled)",
+                "V" => "Auction (aukcja)",
+                "C" => "Closing (zamknięcie)",
+                _ => validity
+            };
         }
 
         private async System.Threading.Tasks.Task LoadDetailsAsync()
@@ -349,6 +618,10 @@ namespace Cross_FIS_API_1._2.ViewModels
                 Details = details;
                 IsLoading = false;
                 StatusMessage = $"Ostatnia aktualizacja: {DateTime.Now:HH:mm:ss}";
+                
+                // Zaktualizuj przyciski Quick Order
+                QuickBuyCommand.RaiseCanExecuteChanged();
+                QuickSellCommand.RaiseCanExecuteChanged();
             });
         }
 

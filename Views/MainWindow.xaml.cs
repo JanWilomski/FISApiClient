@@ -39,7 +39,8 @@ namespace Cross_FIS_API_1._2
             if (DataContext is ConnectionViewModel viewModel)
             {
                 var mdsService = viewModel.GetMdsService();
-                var instrumentWindow = new Views.InstrumentListWindow(mdsService);
+                var sleService = viewModel.GetSleService(); // Pobierz również SleConnectionService
+                var instrumentWindow = new Views.InstrumentListWindow(mdsService, sleService);
                 instrumentWindow.Show();
             }
         }
