@@ -15,7 +15,7 @@ namespace Cross_FIS_API_1._2
             {
                 MdsPasswordBox.Password = viewModel.MdsPassword;
                 SlePasswordBox.Password = viewModel.SlePassword;
-            }
+            } 
         }
 
         private void MdsPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
