@@ -86,7 +86,6 @@ namespace Cross_FIS_API_1._2.Models
 
         /// <summary>
         /// Subskrypcja real-time replies (request 2017) - WYMAGANE przed wysłaniem zleceń
-        /// Format zgodny z FIS API Manual
         /// </summary>
         private async Task SubscribeToRealTimeReplies()
         {
@@ -100,7 +99,6 @@ namespace Cross_FIS_API_1._2.Models
                 
                 _realtimeSubscribed = true;
                 Debug.WriteLine("[SLE] Real-time replies subscription sent (request 2017)");
-                Debug.WriteLine($"[SLE] Subscription data length: {subscriptionRequest.Length} bytes");
             }
             catch (Exception ex)
             {
@@ -111,12 +109,6 @@ namespace Cross_FIS_API_1._2.Models
         /// <summary>
         /// Wysyła nowe zlecenie (request 2000)
         /// </summary>
-        /// <param name="glidAndSymbol">GLID + Symbol instrumentu</param>
-        /// <param name="side">0=Buy, 1=Sell</param>
-        /// <param name="quantity">Ilość</param>
-        /// <param name="modality">L=Limit, B=At best, M=Market</param>
-        /// <param name="price">Cena (dla limit orders)</param>
-        /// <param name="validity">J=Day, K=FOK, E=E&E</param>
         public async Task<bool> SendOrderAsync(
             string glidAndSymbol, 
             int side, 
@@ -124,17 +116,16 @@ namespace Cross_FIS_API_1._2.Models
             string modality, 
             decimal price = 0, 
             string validity = "J",
-            string clientReference = "784",
+            string clientReference = "",
             string internalReference = "",
-            // Twoje dane z FIS Workstation:
-            string clientCodeType = "C",        // Origin: Client (MANDATORY)
-            string clearingAccount = "0100",    // Clearing Account
-            string allocationCode = "0955",     // Allocation receptor (Clearing Firm)
-            string memo = "7841",               // Memo
-            string secondClientCodeType = "B",  // Originator Origin: External B (Broker)
-            string floorTraderId = "0955",      // Own Broker D
-            string clientFreeField1 = "100",    // Custom
-            string currency = "PLN")            // Currency
+            string clientCodeType = "C",
+            string clearingAccount = "",
+            string allocationCode = "",
+            string memo = "",
+            string secondClientCodeType = "",
+            string floorTraderId = "",
+            string clientFreeField1 = "",
+            string currency = "PLN")
         {
             if (!IsConnected || _stream == null)
             {
@@ -152,46 +143,18 @@ namespace Cross_FIS_API_1._2.Models
             {
                 Debug.WriteLine($"[SLE] ========================================");
                 Debug.WriteLine($"[SLE] === SENDING ORDER (Request 2000) ===");
-                Debug.WriteLine($"[SLE] ========================================");
                 Debug.WriteLine($"[SLE] Instrument: {glidAndSymbol}");
                 Debug.WriteLine($"[SLE] Side: {(side == 0 ? "BUY" : "SELL")}");
                 Debug.WriteLine($"[SLE] Quantity: {quantity}");
                 Debug.WriteLine($"[SLE] Modality: {modality}");
                 Debug.WriteLine($"[SLE] Price: {price}");
                 Debug.WriteLine($"[SLE] Validity: {validity}");
-                Debug.WriteLine($"[SLE] --- FIS Workstation Parameters ---");
-                Debug.WriteLine($"[SLE] Client Code Type (Origin): {clientCodeType}");
-                Debug.WriteLine($"[SLE] Clearing Account: {clearingAccount}");
-                Debug.WriteLine($"[SLE] Allocation Code: {allocationCode}");
-                Debug.WriteLine($"[SLE] Floor Trader ID: {floorTraderId}");
-                Debug.WriteLine($"[SLE] Client Reference: {clientReference}");
-                Debug.WriteLine($"[SLE] Memo: {memo}");
-                Debug.WriteLine($"[SLE] Second Client Code Type: {secondClientCodeType}");
-                Debug.WriteLine($"[SLE] Custom Field: {clientFreeField1}");
-                Debug.WriteLine($"[SLE] Currency: {currency}");
 
                 byte[] orderRequest = BuildOrderRequest(
-                    glidAndSymbol, 
-                    side, 
-                    quantity, 
-                    modality, 
-                    price, 
-                    validity,
-                    clientReference,
-                    internalReference,
-                    clientCodeType,
-                    clearingAccount,
-                    allocationCode,
-                    memo,
-                    secondClientCodeType,
-                    floorTraderId,
-                    clientFreeField1,
-                    currency);
-
-                // Wyświetl hex dump dla debugowania
-                Debug.WriteLine($"[SLE] --- HEX DUMP ---");
-                Debug.WriteLine(BitConverter.ToString(orderRequest).Replace("-", " "));
-                Debug.WriteLine($"[SLE] Total message length: {orderRequest.Length} bytes");
+                    glidAndSymbol, side, quantity, modality, price, validity,
+                    clientReference, internalReference, clientCodeType, clearingAccount,
+                    allocationCode, memo, secondClientCodeType, floorTraderId,
+                    clientFreeField1, currency);
 
                 await _stream.WriteAsync(orderRequest, 0, orderRequest.Length);
                 await _stream.FlushAsync();
@@ -204,7 +167,6 @@ namespace Cross_FIS_API_1._2.Models
             catch (Exception ex)
             {
                 Debug.WriteLine($"[SLE] ✗ Failed to send order: {ex.Message}");
-                Debug.WriteLine($"[SLE] Stack trace: {ex.StackTrace}");
                 return false;
             }
         }
@@ -305,7 +267,7 @@ namespace Cross_FIS_API_1._2.Models
                 
                 if (messageStart + totalMessageLength > _receiveBuffer.Count)
                 {
-                    return; // Czekaj na więcej danych
+                    return;
                 }
                 
                 byte[] messageBytes = _receiveBuffer.GetRange(messageStart, totalMessageLength).ToArray();
@@ -354,14 +316,100 @@ namespace Cross_FIS_API_1._2.Models
                 
                 int pos = stxPos + HeaderLength;
                 
-                // Reply type (D)
-                byte replyType = response[pos++];
-                Debug.WriteLine($"[SLE] Reply type: {(char)replyType}");
+                // A: Chaining
+                char chaining = (char)response[pos++];
+                Debug.WriteLine($"[SLE] Chaining: {chaining}");
                 
-                // Dekoduj dalsze pola...
-                // TO DO: Implementacja pełnego parsowania odpowiedzi 2019
+                // B: User number (5 bytes)
+                string userNum = Encoding.ASCII.GetString(response, pos, 5);
+                pos += 5;
+                Debug.WriteLine($"[SLE] User number: {userNum}");
+                
+                // C: Request category (1 byte)
+                char requestCategory = (char)response[pos++];
+                Debug.WriteLine($"[SLE] Request category: {requestCategory}");
+                
+                // D: Reply type (1 byte)
+                char replyType = (char)response[pos++];
+                Debug.WriteLine($"[SLE] Reply type: {replyType}");
+                
+                string replyTypeDesc = replyType switch
+                {
+                    'A' => "Exchange acknowledgement",
+                    'C' => "Exchange reject",
+                    'G' => "GL reject",
+                    'R' => "Trade execution",
+                    'J' => "Exchange message",
+                    'L' => "Inflected message",
+                    _ => "Unknown"
+                };
+                Debug.WriteLine($"[SLE] Reply type description: {replyTypeDesc}");
+                
+                // E: Index (6 bytes)
+                string index = Encoding.ASCII.GetString(response, pos, 6);
+                pos += 6;
+                Debug.WriteLine($"[SLE] Index: {index}");
+                
+                // F: Number of replies (5 bytes)
+                string numReplies = Encoding.ASCII.GetString(response, pos, 5);
+                pos += 5;
+                Debug.WriteLine($"[SLE] Number of replies: {numReplies}");
+                
+                // G: Stockcode (GL encoded)
+                var (stockcode, bytesRead) = DecodeGLField(response, pos);
+                pos += bytesRead;
+                Debug.WriteLine($"[SLE] Stockcode: {stockcode}");
+                
+                // Filler (10 bytes)
+                pos += 10;
+                
+                // BITMAP - dekodowanie pól
+                Debug.WriteLine("[SLE] Decoding bitmap fields...");
+                var bitmapFields = new Dictionary<int, string>();
+                
+                while (pos < length - FooterLength)
+                {
+                    // Dekoduj Field ID
+                    var (fieldIdStr, idBytesRead) = DecodeGLField(response, pos);
+                    if (string.IsNullOrEmpty(fieldIdStr)) break;
+                    
+                    pos += idBytesRead;
+                    
+                    if (!int.TryParse(fieldIdStr, out int fieldId))
+                    {
+                        Debug.WriteLine($"[SLE] Invalid field ID: {fieldIdStr}");
+                        break;
+                    }
+                    
+                    // Dekoduj wartość pola
+                    var (fieldValue, valueBytesRead) = DecodeGLField(response, pos);
+                    pos += valueBytesRead;
+                    
+                    bitmapFields[fieldId] = fieldValue;
+                    Debug.WriteLine($"[SLE] Field #{fieldId} = {fieldValue}");
+                }
+                
+                // Wyświetl najważniejsze pola
+                if (bitmapFields.ContainsKey(30)) 
+                    Debug.WriteLine($"[SLE] Order Status: {bitmapFields[30]}");
+                if (bitmapFields.ContainsKey(42)) 
+                    Debug.WriteLine($"[SLE] SLE Reference: {bitmapFields[42]}");
+                if (bitmapFields.ContainsKey(261)) 
+                    Debug.WriteLine($"[SLE] Order ID: {bitmapFields[261]}");
+                if (bitmapFields.ContainsKey(65)) 
+                    Debug.WriteLine($"[SLE] Reject Code: {bitmapFields[65]}");
                 
                 Debug.WriteLine("[SLE] === ORDER REPLY COMPLETE ===");
+                
+                // Wywołaj eventy
+                if (replyType == 'A')
+                {
+                    OrderAccepted?.Invoke($"Order accepted - Reference: {bitmapFields.GetValueOrDefault(42, "N/A")}");
+                }
+                else if (replyType == 'C' || replyType == 'G')
+                {
+                    OrderRejected?.Invoke($"Order rejected - Code: {bitmapFields.GetValueOrDefault(65, "Unknown")}");
+                }
             }
             catch (Exception ex)
             {
@@ -372,13 +420,11 @@ namespace Cross_FIS_API_1._2.Models
         private void ProcessOrderBookReply(byte[] response, int length, int stxPos)
         {
             Debug.WriteLine("[SLE] Processing order book reply (2004)");
-            // TO DO: Implementacja
         }
 
         private void ProcessRepliesBook(byte[] response, int length, int stxPos)
         {
             Debug.WriteLine("[SLE] Processing replies book (2008)");
-            // TO DO: Implementacja
         }
 
         #region Message Builders
@@ -387,384 +433,240 @@ namespace Cross_FIS_API_1._2.Models
         {
             var dataBuilder = new List<byte>();
             
-            // User number (3 bajty, padded left z zerami)
             dataBuilder.AddRange(Encoding.ASCII.GetBytes(user.PadLeft(3, '0')));
-            
-            // Password (16 bajtów, padded right spacjami)
             dataBuilder.AddRange(Encoding.ASCII.GetBytes(password.PadRight(16, ' ')));
-            
-            // 7 bajtów filler
             dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 7)));
             
-            // Key/Value pairs
-            dataBuilder.AddRange(EncodeField("15")); // Key: Server version
-            dataBuilder.AddRange(EncodeField("V3")); // Value: Version 3
-            
-            dataBuilder.AddRange(EncodeField("26")); // Key: Username
-            dataBuilder.AddRange(EncodeField(user)); // Value: User
+            dataBuilder.AddRange(EncodeField("15"));
+            dataBuilder.AddRange(EncodeField("V3"));
+            dataBuilder.AddRange(EncodeField("26"));
+            dataBuilder.AddRange(EncodeField(user));
             
             var dataPayload = dataBuilder.ToArray();
             return BuildMessage(dataPayload, 1100);
         }
 
-        /// <summary>
-        /// POPRAWIONY format requestu 2017 zgodny z FIS API Manual
-        /// </summary>
         private byte[] BuildRealTimeSubscriptionRequest()
         {
-            // Request 2017 - Real-time replies subscription
-            // Format zgodny z FIS API Manual (przykład C++)
             var dataBuilder = new List<byte>();
             
-            // Flagi subskrypcji - określają jakie typy komunikatów real-time chcemy otrzymywać
-            // Ack flag (1 bajt) - '1' = chcemy otrzymywać potwierdzenia
-            dataBuilder.Add((byte)'1');
-            
-            // Reject flag (1 bajt) - '1' = chcemy otrzymywać odrzucenia
-            dataBuilder.Add((byte)'1');
-            
-            // Exchange reject flag (1 bajt) - '1' = chcemy otrzymywać odrzucenia z giełdy
-            dataBuilder.Add((byte)'1');
-            
-            // Trade execution flag (1 bajt) - '0' = nie subskrybujemy executions (domyślnie)
-            dataBuilder.Add((byte)'0');
-            
-            // Exchange message flag (1 bajt) - '0' = nie subskrybujemy wiadomości z giełdy
-            dataBuilder.Add((byte)'0');
-            
-            // Default flag (1 bajt) - '0' = wartość domyślna
-            dataBuilder.Add((byte)'0');
-            
-            // Inflected message flag (1 bajt) - '0' = nie subskrybujemy
-            dataBuilder.Add((byte)'0');
-            
-            // 11 bajtów filler (spacje)
+            dataBuilder.Add((byte)'1'); // Ack
+            dataBuilder.Add((byte)'1'); // Reject
+            dataBuilder.Add((byte)'1'); // Exchange reject
+            dataBuilder.Add((byte)'1'); // Trade execution
+            dataBuilder.Add((byte)'1'); // Exchange message
+            dataBuilder.Add((byte)'0'); // Default
+            dataBuilder.Add((byte)'0'); // Inflected
             dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 11)));
             
-            // Łącznie: 7 + 11 = 18 bajtów danych
             var dataPayload = dataBuilder.ToArray();
-            
-            Debug.WriteLine($"[SLE] Building 2017 subscription request:");
-            Debug.WriteLine($"[SLE] Data payload length: {dataPayload.Length} bytes");
-            Debug.WriteLine($"[SLE] Flags: ack=1, reject=1, exch_reject=1, trade=0, msg=0, def=0, infl=0");
-            
             return BuildMessage(dataPayload, 2017);
         }
 
         /// <summary>
-        /// Buduje request 2000 - POPRAWIONA WERSJA
-        /// Wysyła TYLKO wypełnione pola, pomija puste
+        /// POPRAWIONY BuildOrderRequest
+        /// Format zgodny z dokumentacją FIS API:
+        /// - Header: User(5) + Category(1) + Command(1) + Stockcode(GL) + Filler(10)
+        /// - Bitmap: Dla każdego pola [Field_ID jako GL][Value jako GL]
+        /// - PUSTE pola NIE są wysyłane
         /// </summary>
-            /// <summary>
-            /// POPRAWIONA wersja - pola w kolejności SEKWENCYJNEJ
-            /// SLE przypisuje numery pozycji automatycznie
-            /// </summary>
-            private byte[] BuildOrderRequest(
-                string glidAndSymbol, 
-                int side, 
-                long quantity, 
-                string modality, 
-                decimal price, 
-                string validity,
-                string clientReference,
-                string internalReference,
-                string clientCodeType,
-                string clearingAccount,
-                string allocationCode,
-                string memo,
-                string secondClientCodeType,
-                string floorTraderId,
-                string clientFreeField1,
-                string currency)
+        private byte[] BuildOrderRequest(
+            string glidAndSymbol,
+            int side,
+            long quantity,
+            string modality,
+            decimal price,
+            string validity,
+            string clientReference,
+            string internalReference,
+            string clientCodeType,
+            string clearingAccount,
+            string allocationCode,
+            string memo,
+            string secondClientCodeType,
+            string floorTraderId,
+            string clientFreeField1,
+            string currency)
+        {
+            var dataBuilder = new List<byte>();
+            
+            Debug.WriteLine($"[SLE] ========================================");
+            Debug.WriteLine($"[SLE] Building order request (PROPER BITMAP FORMAT)");
+            
+            // === HEADER ===
+            string userNum = _userNumber.PadLeft(5, '0');
+            dataBuilder.AddRange(Encoding.ASCII.GetBytes(userNum));
+            Debug.WriteLine($"[SLE] User number: {userNum}");
+            
+            dataBuilder.Add((byte)'O'); // Request category = Simple order
+            Debug.WriteLine($"[SLE] Request category: O");
+            
+            dataBuilder.Add((byte)'0'); // Command = New order
+            Debug.WriteLine($"[SLE] Command: 0 (New)");
+            
+            dataBuilder.AddRange(EncodeField(glidAndSymbol));
+            Debug.WriteLine($"[SLE] Stockcode: {glidAndSymbol}");
+            
+            dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 10)));
+            
+            Debug.WriteLine($"[SLE] Building bitmap with field IDs:");
+            
+            // === BITMAP ===
+            // Format: [Field_ID][Value] gdzie oba są w formacie GL
+            var bitmapFields = new List<byte>();
+            
+            // Field 0: Side (MANDATORY)
+            bitmapFields.AddRange(EncodeField("0"));
+            bitmapFields.AddRange(EncodeField(side.ToString()));
+            Debug.WriteLine($"[SLE] Field #0: Side = {side}");
+            
+            // Field 1: Quantity (MANDATORY)
+            bitmapFields.AddRange(EncodeField("1"));
+            bitmapFields.AddRange(EncodeField(quantity.ToString()));
+            Debug.WriteLine($"[SLE] Field #1: Quantity = {quantity}");
+            
+            // Field 2: Modality (MANDATORY)
+            bitmapFields.AddRange(EncodeField("2"));
+            bitmapFields.AddRange(EncodeField(modality));
+            Debug.WriteLine($"[SLE] Field #2: Modality = {modality}");
+            
+            // Field 3: Price (conditional - tylko dla Limit orders)
+            if (modality == "L" && price > 0)
             {
-                var dataBuilder = new List<byte>();
-                
-                Debug.WriteLine($"[SLE] ========================================");
-                Debug.WriteLine($"[SLE] Building order request V2 (sequential)");
-                
-                // === HEADER ===
-                string userNum = _userNumber.PadLeft(5, '0');
-                dataBuilder.AddRange(Encoding.ASCII.GetBytes(userNum));
-                dataBuilder.Add((byte)'O'); // Request category
-                dataBuilder.Add((byte)'0'); // Command
-                dataBuilder.AddRange(EncodeField(glidAndSymbol));
-                dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 10))); // Filler
-                
-                Debug.WriteLine($"[SLE] Stock: {glidAndSymbol}");
-                Debug.WriteLine($"[SLE] Building bitmap fields in SEQUENTIAL order:");
-                
-                // === BITMAP ===
-                // KRYTYCZNE: Wysyłamy pola SEKWENCYJNIE według dokumentacji
-                // SLE przypisuje im numery pozycji automatycznie (0,1,2,3...)
-                
-                List<byte[]> fields = new List<byte[]>();
-                
-                // 0: Side (MANDATORY)
-                fields.Add(EncodeField(side.ToString()));
-                Debug.WriteLine($"[SLE] Seq 0: Side = {side}");
-                
-                // 1: Quantity (MANDATORY)
-                fields.Add(EncodeField(quantity.ToString()));
-                Debug.WriteLine($"[SLE] Seq 1: Quantity = {quantity}");
-                
-                // 2: Modality (MANDATORY)
-                fields.Add(EncodeField(modality));
-                Debug.WriteLine($"[SLE] Seq 2: Modality = {modality}");
-                
-                // 3: Price (conditional)
-                if (modality == "L" && price > 0)
-                {
-                    fields.Add(EncodeField(price.ToString("F2", CultureInfo.InvariantCulture)));
-                    Debug.WriteLine($"[SLE] Seq 3: Price = {price:F2}");
-                }
-                else
-                {
-                    fields.Add(new byte[] { 32 }); // Spacja bez GL encoding
-                    Debug.WriteLine($"[SLE] Seq 3: Price = (empty)");
-                }
-                
-                // 4: Validity (MANDATORY)
-                fields.Add(EncodeField(validity));
-                Debug.WriteLine($"[SLE] Seq 4: Validity = {validity}");
-                
-                // 5: Expiry date (conditional)
-                fields.Add(new byte[] { 32 }); // Spacja
-                Debug.WriteLine($"[SLE] Seq 5: Expiry date = (empty)");
-                
-                // BRAK 6,7 w dokumentacji
-                
-                // 8: Minimum quantity
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 6: Min quantity = (empty)");
-                
-                // 9: Displayed quantity
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 7: Displayed qty = (empty)");
-                
-                // 10: Client reference
-                if (!string.IsNullOrEmpty(clientReference))
-                {
-                    string clRef = clientReference.Substring(0, Math.Min(8, clientReference.Length));
-                    fields.Add(EncodeField(clRef));
-                    Debug.WriteLine($"[SLE] Seq 8: Client Ref = {clRef}");
-                }
-                else
-                {
-                    fields.Add(new byte[] { 32 });
-                    Debug.WriteLine($"[SLE] Seq 8: Client Ref = (empty)");
-                }
-                
-                // BRAK 11
-                
-                // 12: Internal reference (MANDATORY)
-                string intRef = internalReference;
-                if (string.IsNullOrEmpty(intRef))
-                {
-                    intRef = $"ORD{DateTime.Now:yyyyMMddHHmmss}";
-                }
-                intRef = intRef.Substring(0, Math.Min(16, intRef.Length));
-                fields.Add(EncodeField(intRef));
-                Debug.WriteLine($"[SLE] Seq 9: Internal Ref = {intRef}");
-                
-                // 13: Exchange number (conditional)
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 10: Exchange number = (empty)");
-                
-                // BRAK 14,15,16
-                
-                // 17: Client Code Type (MANDATORY)
-                fields.Add(EncodeField(clientCodeType));
-                Debug.WriteLine($"[SLE] Seq 11: Client Code Type = {clientCodeType} *** MANDATORY ***");
-                
-                // BRAK 18
-                
-                // 19: Allocation Code
-                if (!string.IsNullOrEmpty(allocationCode))
-                {
-                    string allocCode = allocationCode.Substring(0, Math.Min(8, allocationCode.Length));
-                    fields.Add(EncodeField(allocCode));
-                    Debug.WriteLine($"[SLE] Seq 12: Allocation Code = {allocCode}");
-                }
-                else
-                {
-                    fields.Add(new byte[] { 32 });
-                    Debug.WriteLine($"[SLE] Seq 12: Allocation Code = (empty)");
-                }
-                
-                // BRAK 20
-                
-                // 21: Posting Mode
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 13: Posting Mode = (empty)");
-                
-                // BRAK 22,23
-                
-                // 24: Compensation Mode 1
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 14: Compensation Mode = (empty)");
-                
-                // BRAK 25
-                
-                // 26: Stop loss price
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 15: Stop loss price = (empty)");
-                
-                // 27: Routing reference
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 16: Routing ref = (empty)");
-                
-                // BRAK 28-80
-                
-                // 81: Memo
-                if (!string.IsNullOrEmpty(memo))
-                {
-                    string memoStr = memo.Substring(0, Math.Min(18, memo.Length));
-                    fields.Add(EncodeField(memoStr));
-                    Debug.WriteLine($"[SLE] Seq 17: Memo = {memoStr}");
-                }
-                else
-                {
-                    fields.Add(new byte[] { 32 });
-                    Debug.WriteLine($"[SLE] Seq 17: Memo = (empty)");
-                }
-                
-                // 82: Trader Order Number
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 18: Trader Order Number = (empty)");
-                
-                // BRAK 83-90
-                
-                // 91: Application side
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 19: Application side = (empty)");
-                
-                // 92: Hour date station (TIMESTAMP)
-                string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-                fields.Add(EncodeField(timestamp));
-                Debug.WriteLine($"[SLE] Seq 20: Hour date station = {timestamp}");
-                
-                // BRAK 93-105
-                
-                // 106: GLID (MANDATORY)
-                string glid = glidAndSymbol.Length >= 12 
-                    ? glidAndSymbol.Substring(0, 12) 
-                    : glidAndSymbol.PadRight(12, ' ');
-                fields.Add(EncodeField(glid));
-                Debug.WriteLine($"[SLE] Seq 21: GLID = {glid} *** MANDATORY ***");
-                
-                // BRAK 107-116
-                
-                // 117: Exchange cancel quantity
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 22: Exchange cancel qty = (empty)");
-                
-                // BRAK 118-131
-                
-                // 132: Clearing Account 1
-                if (!string.IsNullOrEmpty(clearingAccount))
-                {
-                    fields.Add(EncodeField(clearingAccount));
-                    Debug.WriteLine($"[SLE] Seq 23: Clearing Account = {clearingAccount}");
-                }
-                else
-                {
-                    fields.Add(new byte[] { 32 });
-                    Debug.WriteLine($"[SLE] Seq 23: Clearing Account = (empty)");
-                }
-                
-                // BRAK 133-146
-                
-                // 147: Floor Trader ID
-                if (!string.IsNullOrEmpty(floorTraderId))
-                {
-                    fields.Add(EncodeField(floorTraderId));
-                    Debug.WriteLine($"[SLE] Seq 24: Floor Trader ID = {floorTraderId}");
-                }
-                else
-                {
-                    fields.Add(new byte[] { 32 });
-                    Debug.WriteLine($"[SLE] Seq 24: Floor Trader ID = (empty)");
-                }
-                
-                // BRAK 148-191
-                
-                // 192: Currency
-                if (!string.IsNullOrEmpty(currency))
-                {
-                    fields.Add(EncodeField(currency));
-                    Debug.WriteLine($"[SLE] Seq 25: Currency = {currency}");
-                }
-                else
-                {
-                    fields.Add(new byte[] { 32 });
-                    Debug.WriteLine($"[SLE] Seq 25: Currency = (empty)");
-                }
-                
-                // BRAK 193-305
-                
-                // 306: Second Client Code Type
-                if (!string.IsNullOrEmpty(secondClientCodeType) && secondClientCodeType != " ")
-                {
-                    fields.Add(EncodeField(secondClientCodeType));
-                    Debug.WriteLine($"[SLE] Seq 26: Second Client Code Type = {secondClientCodeType}");
-                }
-                else
-                {
-                    fields.Add(new byte[] { 32 });
-                    Debug.WriteLine($"[SLE] Seq 26: Second Client Code Type = (empty)");
-                }
-                
-                // BRAK 307-316
-                
-                // 317: Client Free Field 1
-                if (!string.IsNullOrEmpty(clientFreeField1))
-                {
-                    string customField = clientFreeField1.Substring(0, Math.Min(16, clientFreeField1.Length));
-                    fields.Add(EncodeField(customField));
-                    Debug.WriteLine($"[SLE] Seq 27: Client Free Field 1 = {customField}");
-                }
-                else
-                {
-                    fields.Add(new byte[] { 32 });
-                    Debug.WriteLine($"[SLE] Seq 27: Client Free Field 1 = (empty)");
-                }
-                
-                // 318: Client Free Field 2
-                fields.Add(new byte[] { 32 });
-                Debug.WriteLine($"[SLE] Seq 28: Client Free Field 2 = (empty)");
-                
-                // Połącz wszystkie pola
-                foreach (var field in fields)
-                {
-                    dataBuilder.AddRange(field);
-                }
-                
-                Debug.WriteLine($"[SLE] Total fields: {fields.Count}");
-                Debug.WriteLine($"[SLE] Data payload size: {dataBuilder.Count} bytes");
-                
-                var dataPayload = dataBuilder.ToArray();
-                
-                // Hex dump
-                Debug.WriteLine($"[SLE] --- DATA PAYLOAD HEX ---");
-                for (int i = 0; i < Math.Min(200, dataPayload.Length); i += 32)
-                {
-                    int len = Math.Min(32, dataPayload.Length - i);
-                    string hex = BitConverter.ToString(dataPayload, i, len).Replace("-", " ");
-                    Debug.WriteLine($"[SLE] {i:D4}: {hex}");
-                }
-                Debug.WriteLine($"[SLE] ========================================");
-                
-                return BuildMessage(dataPayload, 2000);
+                bitmapFields.AddRange(EncodeField("3"));
+                bitmapFields.AddRange(EncodeField(price.ToString("F2", CultureInfo.InvariantCulture)));
+                Debug.WriteLine($"[SLE] Field #3: Price = {price:F2}");
             }
+            
+            // Field 4: Validity (MANDATORY)
+            bitmapFields.AddRange(EncodeField("4"));
+            bitmapFields.AddRange(EncodeField(validity));
+            Debug.WriteLine($"[SLE] Field #4: Validity = {validity}");
+            
+            // Field 10: Client reference (opcjonalne)
+            if (!string.IsNullOrEmpty(clientReference))
+            {
+                string clRef = clientReference.Substring(0, Math.Min(8, clientReference.Length));
+                bitmapFields.AddRange(EncodeField("10"));
+                bitmapFields.AddRange(EncodeField(clRef));
+                Debug.WriteLine($"[SLE] Field #10: Client Reference = {clRef}");
+            }
+            
+            // Field 12: Internal reference (MANDATORY)
+            string intRef = internalReference;
+            if (string.IsNullOrEmpty(intRef))
+            {
+                intRef = $"ORD{DateTime.Now:yyyyMMddHHmmss}";
+            }
+            intRef = intRef.Substring(0, Math.Min(16, intRef.Length));
+            bitmapFields.AddRange(EncodeField("12"));
+            bitmapFields.AddRange(EncodeField(intRef));
+            Debug.WriteLine($"[SLE] Field #12: Internal Reference = {intRef}");
+            
+            // Field 17: Client Code Type (MANDATORY dla WSE)
+            bitmapFields.AddRange(EncodeField("17"));
+            bitmapFields.AddRange(EncodeField(clientCodeType));
+            Debug.WriteLine($"[SLE] Field #17: Client Code Type = {clientCodeType} *** MANDATORY ***");
+            
+            // Field 19: Allocation Code (clearing firm)
+            if (!string.IsNullOrEmpty(allocationCode))
+            {
+                string allocCode = allocationCode.Substring(0, Math.Min(8, allocationCode.Length));
+                bitmapFields.AddRange(EncodeField("19"));
+                bitmapFields.AddRange(EncodeField(allocCode));
+                Debug.WriteLine($"[SLE] Field #19: Allocation Code = {allocCode}");
+            }
+            
+            // Field 81: Memo
+            if (!string.IsNullOrEmpty(memo))
+            {
+                string memoStr = memo.Substring(0, Math.Min(18, memo.Length));
+                bitmapFields.AddRange(EncodeField("81"));
+                bitmapFields.AddRange(EncodeField(memoStr));
+                Debug.WriteLine($"[SLE] Field #81: Memo = {memoStr}");
+            }
+            
+            // Field 91: Application side (opcjonalne)
+            // ' ' = Default, pozostaw puste jeśli nie używamy SOR/DMA
+            
+            // Field 92: Hour date station (timestamp)
+            string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+            bitmapFields.AddRange(EncodeField("92"));
+            bitmapFields.AddRange(EncodeField(timestamp));
+            Debug.WriteLine($"[SLE] Field #92: Timestamp = {timestamp}");
+            
+            // Field 106: GLID (MANDATORY)
+            string glid = glidAndSymbol.Length >= 12 
+                ? glidAndSymbol.Substring(0, 12) 
+                : glidAndSymbol.PadRight(12, ' ');
+            bitmapFields.AddRange(EncodeField("106"));
+            bitmapFields.AddRange(EncodeField(glid));
+            Debug.WriteLine($"[SLE] Field #106: GLID = {glid} *** MANDATORY ***");
+            
+            // Field 132: Clearing Account 1
+            if (!string.IsNullOrEmpty(clearingAccount))
+            {
+                bitmapFields.AddRange(EncodeField("132"));
+                bitmapFields.AddRange(EncodeField(clearingAccount));
+                Debug.WriteLine($"[SLE] Field #132: Clearing Account = {clearingAccount}");
+            }
+            
+            // Field 147: Floor Trader ID
+            if (!string.IsNullOrEmpty(floorTraderId))
+            {
+                bitmapFields.AddRange(EncodeField("147"));
+                bitmapFields.AddRange(EncodeField(floorTraderId));
+                Debug.WriteLine($"[SLE] Field #147: Floor Trader ID = {floorTraderId}");
+            }
+            
+            // Field 192: Currency
+            if (!string.IsNullOrEmpty(currency))
+            {
+                bitmapFields.AddRange(EncodeField("192"));
+                bitmapFields.AddRange(EncodeField(currency));
+                Debug.WriteLine($"[SLE] Field #192: Currency = {currency}");
+            }
+            
+            // Field 306: Second Client Code Type
+            if (!string.IsNullOrEmpty(secondClientCodeType) && secondClientCodeType != " ")
+            {
+                bitmapFields.AddRange(EncodeField("306"));
+                bitmapFields.AddRange(EncodeField(secondClientCodeType));
+                Debug.WriteLine($"[SLE] Field #306: Second Client Code Type = {secondClientCodeType}");
+            }
+            
+            // Field 317: Client Free Field 1
+            if (!string.IsNullOrEmpty(clientFreeField1))
+            {
+                string customField = clientFreeField1.Substring(0, Math.Min(16, clientFreeField1.Length));
+                bitmapFields.AddRange(EncodeField("317"));
+                bitmapFields.AddRange(EncodeField(customField));
+                Debug.WriteLine($"[SLE] Field #317: Client Free Field 1 = {customField}");
+            }
+            
+            // Dodaj bitmap do dataBuilder
+            dataBuilder.AddRange(bitmapFields);
+            
+            Debug.WriteLine($"[SLE] Bitmap size: {bitmapFields.Count} bytes");
+            Debug.WriteLine($"[SLE] Total payload size: {dataBuilder.Count} bytes");
+            
+            var dataPayload = dataBuilder.ToArray();
+            
+            // Hex dump
+            Debug.WriteLine($"[SLE] --- DATA PAYLOAD HEX ---");
+            for (int i = 0; i < Math.Min(200, dataPayload.Length); i += 32)
+            {
+                int len = Math.Min(32, dataPayload.Length - i);
+                string hex = BitConverter.ToString(dataPayload, i, len).Replace("-", " ");
+                Debug.WriteLine($"[SLE] {i:D4}: {hex}");
+            }
+            Debug.WriteLine($"[SLE] ========================================");
+            
+            return BuildMessage(dataPayload, 2000);
+        }
 
         /// <summary>
         /// Buduje wiadomość FIS API z nagłówkiem, danymi i stopką
-        /// POPRAWIONY: API version dla SLE V5 to '0'
-        /// POPRAWIONY: Używa przydzielonego Calling ID zamiast zer
-        /// </summary>
-        /// <summary>
-        /// Buduje wiadomość FIS API z nagłówkiem, danymi i stopką
-        /// POPRAWIONY: API version dla różnych requestów
         /// </summary>
         private byte[] BuildMessage(byte[] dataPayload, int requestNumber)
         {
@@ -775,96 +677,57 @@ namespace Cross_FIS_API_1._2.Models
             using (var ms = new System.IO.MemoryStream(message))
             using (var writer = new System.IO.BinaryWriter(ms))
             {
-                // LG (2 bajty) - little endian!
+                // LG (2 bajty) - little endian
                 writer.Write((byte)(totalLength % 256));
                 writer.Write((byte)(totalLength / 256));
-                
-                Debug.WriteLine($"[SLE] Total message length: {totalLength}");
                 
                 // HEADER (32 bajty)
                 writer.Write(Stx); // STX = 0x02
                 
                 // API version (1 bajt)
-                // KRYTYCZNE: Dla request 2000 używamy API V3 = '0'
+                // Dla request 2000/2019 używamy API V3 = '0'
                 if (requestNumber == 2000 || requestNumber == 2019)
                 {
                     writer.Write((byte)'0'); // API V3
-                    Debug.WriteLine($"[SLE] API Version: 0 (V3) for request {requestNumber}");
                 }
                 else if (requestNumber == 2017)
                 {
-                    writer.Write((byte)' '); // API V4 dla subscriptions
-                    Debug.WriteLine($"[SLE] API Version: space (V4) for request {requestNumber}");
+                    writer.Write((byte)' '); // API V4
                 }
                 else
                 {
                     writer.Write((byte)'0'); // Default V3
-                    Debug.WriteLine($"[SLE] API Version: 0 (V3 default)");
                 }
                 
                 // Length (5 bajtów ASCII)
                 int contentLength = HeaderLength + dataLength + FooterLength;
                 writer.Write(Encoding.ASCII.GetBytes(contentLength.ToString().PadLeft(5, '0')));
-                Debug.WriteLine($"[SLE] Content length: {contentLength}");
                 
                 // Called logical ID (5 bajtów) - server subnode
                 writer.Write(Encoding.ASCII.GetBytes(_subnode.PadLeft(5, '0')));
-                Debug.WriteLine($"[SLE] Called ID (server): {_subnode}");
                 
-                // Filler (5 bajtów spacji)
+                // Filler (5 bajtów)
                 writer.Write(Encoding.ASCII.GetBytes(new string(' ', 5)));
                 
                 // Calling logical ID (5 bajtów) - nasz assigned ID
                 writer.Write(Encoding.ASCII.GetBytes(_assignedCallingId.PadLeft(5, '0')));
-                Debug.WriteLine($"[SLE] Calling ID (us): {_assignedCallingId}");
                 
-                // Filler (2 bajty spacji)
+                // Filler (2 bajty)
                 writer.Write(Encoding.ASCII.GetBytes(new string(' ', 2)));
                 
                 // Request number (5 bajtów)
                 writer.Write(Encoding.ASCII.GetBytes(requestNumber.ToString().PadLeft(5, '0')));
-                Debug.WriteLine($"[SLE] Request number: {requestNumber}");
                 
-                // Filler (3 bajty spacji)
+                // Filler (3 bajty)
                 writer.Write(Encoding.ASCII.GetBytes(new string(' ', 3)));
                 
                 // DATA
                 writer.Write(dataPayload);
-                Debug.WriteLine($"[SLE] Data payload: {dataPayload.Length} bytes");
                 
                 // FOOTER (3 bajty)
                 writer.Write(Encoding.ASCII.GetBytes(new string(' ', 2)));
                 writer.Write(Etx); // ETX = 0x03
             }
-            
-            // Hex dump całej wiadomości
-            Debug.WriteLine($"[SLE] === COMPLETE MESSAGE HEX DUMP ===");
-            Debug.WriteLine($"[SLE] Total: {message.Length} bytes");
-            
-            for (int i = 0; i < message.Length; i += 16)
-            {
-                int len = Math.Min(16, message.Length - i);
-                
-                // Offset
-                string offset = $"{i:X4}";
-                
-                // Hex
-                string hex = BitConverter.ToString(message, i, len).Replace("-", " ");
-                
-                // ASCII
-                string ascii = "";
-                for (int j = 0; j < len; j++)
-                {
-                    byte b = message[i + j];
-                    if (b >= 32 && b < 127)
-                        ascii += (char)b;
-                    else
-                        ascii += '.';
-                }
-                
-                Debug.WriteLine($"[SLE] {offset}  {hex,-48}  |{ascii}|");
-            }
-            Debug.WriteLine($"[SLE] === END MESSAGE DUMP ===");
             
             return message;
         }
@@ -877,7 +740,7 @@ namespace Cross_FIS_API_1._2.Models
         {
             if (string.IsNullOrEmpty(value))
             {
-                // Puste pole - zwróć pojedynczą spację
+                // Dla pustego pola zwróć pojedynczą spację
                 return new byte[] { 33, 32 }; // LENGTH=1+32=33, DATA=' '
             }
     
@@ -886,11 +749,25 @@ namespace Cross_FIS_API_1._2.Models
             encoded[0] = (byte)(valueBytes.Length + 32);
             Array.Copy(valueBytes, 0, encoded, 1, valueBytes.Length);
     
-            // Debug
-            string hex = BitConverter.ToString(encoded).Replace("-", " ");
-            Debug.WriteLine($"[SLE] EncodeField('{value}') -> [{hex}]");
-    
             return encoded;
+        }
+        
+        /// <summary>
+        /// Dekoduje pole w formacie GL
+        /// Zwraca (wartość, ilość odczytanych bajtów)
+        /// </summary>
+        private (string value, int bytesRead) DecodeGLField(byte[] data, int startPos)
+        {
+            if (startPos >= data.Length)
+                return (string.Empty, 0);
+            
+            int length = data[startPos] - 32;
+            
+            if (length <= 0 || startPos + 1 + length > data.Length)
+                return (string.Empty, 0);
+            
+            string value = Encoding.ASCII.GetString(data, startPos + 1, length);
+            return (value, 1 + length);
         }
 
         private bool VerifyLoginResponse(byte[] response, int length)
@@ -899,15 +776,11 @@ namespace Cross_FIS_API_1._2.Models
             
             try
             {
-                // Sprawdź request number w odpowiedzi
                 string requestNumberStr = Encoding.ASCII.GetString(response, 26, 5);
                 
-                if (requestNumberStr == "01100") // Success response
+                if (requestNumberStr == "01100")
                 {
-                    // KRYTYCZNE: W odpowiedzi serwera pola są odwrócone!
-                    // W requestach OD klienta: Called=serwer(14300), Calling=klient(my)
-                    // W odpowiedziach OD serwera: Called=klient(my), Calling=serwer(14300)
-                    // Musimy odczytać CALLED ID (pozycja 9-13), nie CALLING ID (19-23)!
+                    // W odpowiedziach OD serwera: Called=klient(my), Calling=serwer
                     string assignedCallingId = Encoding.ASCII.GetString(response, 9, 5);
                     _assignedCallingId = assignedCallingId.Trim();
                     
@@ -927,7 +800,6 @@ namespace Cross_FIS_API_1._2.Models
         #endregion
     }
 
-    // Model dla odpowiedzi na zlecenie
     public class OrderReply
     {
         public string OrderId { get; set; } = string.Empty;
