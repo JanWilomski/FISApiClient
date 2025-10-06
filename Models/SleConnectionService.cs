@@ -124,8 +124,17 @@ namespace Cross_FIS_API_1._2.Models
             string modality, 
             decimal price = 0, 
             string validity = "J",
-            string clientReference = "",
-            string internalReference = "")
+            string clientReference = "784",
+            string internalReference = "",
+            // Twoje dane z FIS Workstation:
+            string clientCodeType = "C",        // Origin: Client (MANDATORY)
+            string clearingAccount = "0100",    // Clearing Account
+            string allocationCode = "0955",     // Allocation receptor (Clearing Firm)
+            string memo = "7841",               // Memo
+            string secondClientCodeType = "B",  // Originator Origin: External B (Broker)
+            string floorTraderId = "0955",      // Own Broker D
+            string clientFreeField1 = "100",    // Custom
+            string currency = "PLN")            // Currency
         {
             if (!IsConnected || _stream == null)
             {
@@ -141,13 +150,25 @@ namespace Cross_FIS_API_1._2.Models
 
             try
             {
-                Debug.WriteLine($"[SLE] === SENDING ORDER ===");
+                Debug.WriteLine($"[SLE] ========================================");
+                Debug.WriteLine($"[SLE] === SENDING ORDER (Request 2000) ===");
+                Debug.WriteLine($"[SLE] ========================================");
                 Debug.WriteLine($"[SLE] Instrument: {glidAndSymbol}");
                 Debug.WriteLine($"[SLE] Side: {(side == 0 ? "BUY" : "SELL")}");
                 Debug.WriteLine($"[SLE] Quantity: {quantity}");
                 Debug.WriteLine($"[SLE] Modality: {modality}");
                 Debug.WriteLine($"[SLE] Price: {price}");
                 Debug.WriteLine($"[SLE] Validity: {validity}");
+                Debug.WriteLine($"[SLE] --- FIS Workstation Parameters ---");
+                Debug.WriteLine($"[SLE] Client Code Type (Origin): {clientCodeType}");
+                Debug.WriteLine($"[SLE] Clearing Account: {clearingAccount}");
+                Debug.WriteLine($"[SLE] Allocation Code: {allocationCode}");
+                Debug.WriteLine($"[SLE] Floor Trader ID: {floorTraderId}");
+                Debug.WriteLine($"[SLE] Client Reference: {clientReference}");
+                Debug.WriteLine($"[SLE] Memo: {memo}");
+                Debug.WriteLine($"[SLE] Second Client Code Type: {secondClientCodeType}");
+                Debug.WriteLine($"[SLE] Custom Field: {clientFreeField1}");
+                Debug.WriteLine($"[SLE] Currency: {currency}");
 
                 byte[] orderRequest = BuildOrderRequest(
                     glidAndSymbol, 
@@ -157,19 +178,33 @@ namespace Cross_FIS_API_1._2.Models
                     price, 
                     validity,
                     clientReference,
-                    internalReference);
+                    internalReference,
+                    clientCodeType,
+                    clearingAccount,
+                    allocationCode,
+                    memo,
+                    secondClientCodeType,
+                    floorTraderId,
+                    clientFreeField1,
+                    currency);
+
+                // Wyświetl hex dump dla debugowania
+                Debug.WriteLine($"[SLE] --- HEX DUMP ---");
+                Debug.WriteLine(BitConverter.ToString(orderRequest).Replace("-", " "));
+                Debug.WriteLine($"[SLE] Total message length: {orderRequest.Length} bytes");
 
                 await _stream.WriteAsync(orderRequest, 0, orderRequest.Length);
                 await _stream.FlushAsync();
 
-                Debug.WriteLine($"[SLE] Order sent successfully");
-                Debug.WriteLine($"[SLE] === ORDER COMPLETE ===");
+                Debug.WriteLine($"[SLE] ✓ Order sent successfully");
+                Debug.WriteLine($"[SLE] ========================================");
                 
                 return true;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[SLE] Failed to send order: {ex.Message}");
+                Debug.WriteLine($"[SLE] ✗ Failed to send order: {ex.Message}");
+                Debug.WriteLine($"[SLE] Stack trace: {ex.StackTrace}");
                 return false;
             }
         }
@@ -416,108 +451,320 @@ namespace Cross_FIS_API_1._2.Models
             return BuildMessage(dataPayload, 2017);
         }
 
-        private byte[] BuildOrderRequest(
-            string glidAndSymbol, 
-            int side, 
-            long quantity, 
-            string modality, 
-            decimal price, 
-            string validity,
-            string clientReference,
-            string internalReference)
-        {
-            var dataBuilder = new List<byte>();
-            
-            // === HEADER ===
-            // User number (5 bajtów ASCII)
-            dataBuilder.AddRange(Encoding.ASCII.GetBytes(_userNumber.PadLeft(5, '0')));
-            
-            // Request category (1 bajt) - 'O' dla Simple Order
-            dataBuilder.Add((byte)'O');
-            
-            // Command (1 bajt) - '0' = New Order
-            dataBuilder.Add((byte)'0');
-            
-            // Stock code (GLID+Symbol w formacie GL)
-            dataBuilder.AddRange(EncodeField(glidAndSymbol));
-            
-            // Filler (10 bajtów)
-            dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 10)));
-            
-            // === BITMAP (pola danych) ===
-            // Pozycje 0-n, każde pole zakodowane w formacie GL
-            
-            // WAŻNE: Musimy zakodować pozycje jako spacer dla nieużywanych pól
-            // i właściwe wartości dla używanych
-            
-            // Pole 0: Side (0=Buy, 1=Sell)
-            dataBuilder.AddRange(EncodeField(side.ToString()));
-            
-            // Pole 1: Quantity
-            dataBuilder.AddRange(EncodeField(quantity.ToString()));
-            
-            // Pole 2: Modality (L/B/M)
-            dataBuilder.AddRange(EncodeField(modality));
-            
-            // Pole 3: Price (jeśli modality = L)
-            if (modality == "L" && price > 0)
+        /// <summary>
+        /// Buduje request 2000 - POPRAWIONA WERSJA
+        /// Wysyła TYLKO wypełnione pola, pomija puste
+        /// </summary>
+            /// <summary>
+            /// POPRAWIONA wersja - pola w kolejności SEKWENCYJNEJ
+            /// SLE przypisuje numery pozycji automatycznie
+            /// </summary>
+            private byte[] BuildOrderRequest(
+                string glidAndSymbol, 
+                int side, 
+                long quantity, 
+                string modality, 
+                decimal price, 
+                string validity,
+                string clientReference,
+                string internalReference,
+                string clientCodeType,
+                string clearingAccount,
+                string allocationCode,
+                string memo,
+                string secondClientCodeType,
+                string floorTraderId,
+                string clientFreeField1,
+                string currency)
             {
-                dataBuilder.AddRange(EncodeField(price.ToString(CultureInfo.InvariantCulture)));
+                var dataBuilder = new List<byte>();
+                
+                Debug.WriteLine($"[SLE] ========================================");
+                Debug.WriteLine($"[SLE] Building order request V2 (sequential)");
+                
+                // === HEADER ===
+                string userNum = _userNumber.PadLeft(5, '0');
+                dataBuilder.AddRange(Encoding.ASCII.GetBytes(userNum));
+                dataBuilder.Add((byte)'O'); // Request category
+                dataBuilder.Add((byte)'0'); // Command
+                dataBuilder.AddRange(EncodeField(glidAndSymbol));
+                dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 10))); // Filler
+                
+                Debug.WriteLine($"[SLE] Stock: {glidAndSymbol}");
+                Debug.WriteLine($"[SLE] Building bitmap fields in SEQUENTIAL order:");
+                
+                // === BITMAP ===
+                // KRYTYCZNE: Wysyłamy pola SEKWENCYJNIE według dokumentacji
+                // SLE przypisuje im numery pozycji automatycznie (0,1,2,3...)
+                
+                List<byte[]> fields = new List<byte[]>();
+                
+                // 0: Side (MANDATORY)
+                fields.Add(EncodeField(side.ToString()));
+                Debug.WriteLine($"[SLE] Seq 0: Side = {side}");
+                
+                // 1: Quantity (MANDATORY)
+                fields.Add(EncodeField(quantity.ToString()));
+                Debug.WriteLine($"[SLE] Seq 1: Quantity = {quantity}");
+                
+                // 2: Modality (MANDATORY)
+                fields.Add(EncodeField(modality));
+                Debug.WriteLine($"[SLE] Seq 2: Modality = {modality}");
+                
+                // 3: Price (conditional)
+                if (modality == "L" && price > 0)
+                {
+                    fields.Add(EncodeField(price.ToString("F2", CultureInfo.InvariantCulture)));
+                    Debug.WriteLine($"[SLE] Seq 3: Price = {price:F2}");
+                }
+                else
+                {
+                    fields.Add(new byte[] { 32 }); // Spacja bez GL encoding
+                    Debug.WriteLine($"[SLE] Seq 3: Price = (empty)");
+                }
+                
+                // 4: Validity (MANDATORY)
+                fields.Add(EncodeField(validity));
+                Debug.WriteLine($"[SLE] Seq 4: Validity = {validity}");
+                
+                // 5: Expiry date (conditional)
+                fields.Add(new byte[] { 32 }); // Spacja
+                Debug.WriteLine($"[SLE] Seq 5: Expiry date = (empty)");
+                
+                // BRAK 6,7 w dokumentacji
+                
+                // 8: Minimum quantity
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 6: Min quantity = (empty)");
+                
+                // 9: Displayed quantity
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 7: Displayed qty = (empty)");
+                
+                // 10: Client reference
+                if (!string.IsNullOrEmpty(clientReference))
+                {
+                    string clRef = clientReference.Substring(0, Math.Min(8, clientReference.Length));
+                    fields.Add(EncodeField(clRef));
+                    Debug.WriteLine($"[SLE] Seq 8: Client Ref = {clRef}");
+                }
+                else
+                {
+                    fields.Add(new byte[] { 32 });
+                    Debug.WriteLine($"[SLE] Seq 8: Client Ref = (empty)");
+                }
+                
+                // BRAK 11
+                
+                // 12: Internal reference (MANDATORY)
+                string intRef = internalReference;
+                if (string.IsNullOrEmpty(intRef))
+                {
+                    intRef = $"ORD{DateTime.Now:yyyyMMddHHmmss}";
+                }
+                intRef = intRef.Substring(0, Math.Min(16, intRef.Length));
+                fields.Add(EncodeField(intRef));
+                Debug.WriteLine($"[SLE] Seq 9: Internal Ref = {intRef}");
+                
+                // 13: Exchange number (conditional)
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 10: Exchange number = (empty)");
+                
+                // BRAK 14,15,16
+                
+                // 17: Client Code Type (MANDATORY)
+                fields.Add(EncodeField(clientCodeType));
+                Debug.WriteLine($"[SLE] Seq 11: Client Code Type = {clientCodeType} *** MANDATORY ***");
+                
+                // BRAK 18
+                
+                // 19: Allocation Code
+                if (!string.IsNullOrEmpty(allocationCode))
+                {
+                    string allocCode = allocationCode.Substring(0, Math.Min(8, allocationCode.Length));
+                    fields.Add(EncodeField(allocCode));
+                    Debug.WriteLine($"[SLE] Seq 12: Allocation Code = {allocCode}");
+                }
+                else
+                {
+                    fields.Add(new byte[] { 32 });
+                    Debug.WriteLine($"[SLE] Seq 12: Allocation Code = (empty)");
+                }
+                
+                // BRAK 20
+                
+                // 21: Posting Mode
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 13: Posting Mode = (empty)");
+                
+                // BRAK 22,23
+                
+                // 24: Compensation Mode 1
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 14: Compensation Mode = (empty)");
+                
+                // BRAK 25
+                
+                // 26: Stop loss price
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 15: Stop loss price = (empty)");
+                
+                // 27: Routing reference
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 16: Routing ref = (empty)");
+                
+                // BRAK 28-80
+                
+                // 81: Memo
+                if (!string.IsNullOrEmpty(memo))
+                {
+                    string memoStr = memo.Substring(0, Math.Min(18, memo.Length));
+                    fields.Add(EncodeField(memoStr));
+                    Debug.WriteLine($"[SLE] Seq 17: Memo = {memoStr}");
+                }
+                else
+                {
+                    fields.Add(new byte[] { 32 });
+                    Debug.WriteLine($"[SLE] Seq 17: Memo = (empty)");
+                }
+                
+                // 82: Trader Order Number
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 18: Trader Order Number = (empty)");
+                
+                // BRAK 83-90
+                
+                // 91: Application side
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 19: Application side = (empty)");
+                
+                // 92: Hour date station (TIMESTAMP)
+                string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                fields.Add(EncodeField(timestamp));
+                Debug.WriteLine($"[SLE] Seq 20: Hour date station = {timestamp}");
+                
+                // BRAK 93-105
+                
+                // 106: GLID (MANDATORY)
+                string glid = glidAndSymbol.Length >= 12 
+                    ? glidAndSymbol.Substring(0, 12) 
+                    : glidAndSymbol.PadRight(12, ' ');
+                fields.Add(EncodeField(glid));
+                Debug.WriteLine($"[SLE] Seq 21: GLID = {glid} *** MANDATORY ***");
+                
+                // BRAK 107-116
+                
+                // 117: Exchange cancel quantity
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 22: Exchange cancel qty = (empty)");
+                
+                // BRAK 118-131
+                
+                // 132: Clearing Account 1
+                if (!string.IsNullOrEmpty(clearingAccount))
+                {
+                    fields.Add(EncodeField(clearingAccount));
+                    Debug.WriteLine($"[SLE] Seq 23: Clearing Account = {clearingAccount}");
+                }
+                else
+                {
+                    fields.Add(new byte[] { 32 });
+                    Debug.WriteLine($"[SLE] Seq 23: Clearing Account = (empty)");
+                }
+                
+                // BRAK 133-146
+                
+                // 147: Floor Trader ID
+                if (!string.IsNullOrEmpty(floorTraderId))
+                {
+                    fields.Add(EncodeField(floorTraderId));
+                    Debug.WriteLine($"[SLE] Seq 24: Floor Trader ID = {floorTraderId}");
+                }
+                else
+                {
+                    fields.Add(new byte[] { 32 });
+                    Debug.WriteLine($"[SLE] Seq 24: Floor Trader ID = (empty)");
+                }
+                
+                // BRAK 148-191
+                
+                // 192: Currency
+                if (!string.IsNullOrEmpty(currency))
+                {
+                    fields.Add(EncodeField(currency));
+                    Debug.WriteLine($"[SLE] Seq 25: Currency = {currency}");
+                }
+                else
+                {
+                    fields.Add(new byte[] { 32 });
+                    Debug.WriteLine($"[SLE] Seq 25: Currency = (empty)");
+                }
+                
+                // BRAK 193-305
+                
+                // 306: Second Client Code Type
+                if (!string.IsNullOrEmpty(secondClientCodeType) && secondClientCodeType != " ")
+                {
+                    fields.Add(EncodeField(secondClientCodeType));
+                    Debug.WriteLine($"[SLE] Seq 26: Second Client Code Type = {secondClientCodeType}");
+                }
+                else
+                {
+                    fields.Add(new byte[] { 32 });
+                    Debug.WriteLine($"[SLE] Seq 26: Second Client Code Type = (empty)");
+                }
+                
+                // BRAK 307-316
+                
+                // 317: Client Free Field 1
+                if (!string.IsNullOrEmpty(clientFreeField1))
+                {
+                    string customField = clientFreeField1.Substring(0, Math.Min(16, clientFreeField1.Length));
+                    fields.Add(EncodeField(customField));
+                    Debug.WriteLine($"[SLE] Seq 27: Client Free Field 1 = {customField}");
+                }
+                else
+                {
+                    fields.Add(new byte[] { 32 });
+                    Debug.WriteLine($"[SLE] Seq 27: Client Free Field 1 = (empty)");
+                }
+                
+                // 318: Client Free Field 2
+                fields.Add(new byte[] { 32 });
+                Debug.WriteLine($"[SLE] Seq 28: Client Free Field 2 = (empty)");
+                
+                // Połącz wszystkie pola
+                foreach (var field in fields)
+                {
+                    dataBuilder.AddRange(field);
+                }
+                
+                Debug.WriteLine($"[SLE] Total fields: {fields.Count}");
+                Debug.WriteLine($"[SLE] Data payload size: {dataBuilder.Count} bytes");
+                
+                var dataPayload = dataBuilder.ToArray();
+                
+                // Hex dump
+                Debug.WriteLine($"[SLE] --- DATA PAYLOAD HEX ---");
+                for (int i = 0; i < Math.Min(200, dataPayload.Length); i += 32)
+                {
+                    int len = Math.Min(32, dataPayload.Length - i);
+                    string hex = BitConverter.ToString(dataPayload, i, len).Replace("-", " ");
+                    Debug.WriteLine($"[SLE] {i:D4}: {hex}");
+                }
+                Debug.WriteLine($"[SLE] ========================================");
+                
+                return BuildMessage(dataPayload, 2000);
             }
-            else
-            {
-                dataBuilder.Add((byte)' '); // Puste pole
-            }
-            
-            // Pole 4: Validity (J/K/E)
-            dataBuilder.AddRange(EncodeField(validity));
-            
-            // Pole 5: Expiry date (opcjonalne)
-            dataBuilder.Add((byte)' ');
-            
-            // Pole 6: Expiry time (opcjonalne)
-            dataBuilder.Add((byte)' ');
-            
-            // Pole 7: (nieużywane)
-            dataBuilder.Add((byte)' ');
-            
-            // Pole 8: Minimum quantity (opcjonalne)
-            dataBuilder.Add((byte)' ');
-            
-            // Pole 9: Displayed quantity (opcjonalne)
-            dataBuilder.Add((byte)' ');
-            
-            // Pole 10: Client reference (opcjonalne, max 8 znaków)
-            if (!string.IsNullOrEmpty(clientReference))
-            {
-                dataBuilder.AddRange(EncodeField(clientReference.Substring(0, Math.Min(8, clientReference.Length))));
-            }
-            else
-            {
-                dataBuilder.Add((byte)' ');
-            }
-            
-            // Pole 11: (nieużywane)
-            dataBuilder.Add((byte)' ');
-            
-            // Pole 12: Internal reference (opcjonalne, max 16 znaków)
-            if (!string.IsNullOrEmpty(internalReference))
-            {
-                dataBuilder.AddRange(EncodeField(internalReference.Substring(0, Math.Min(16, internalReference.Length))));
-            }
-            else
-            {
-                dataBuilder.Add((byte)' ');
-            }
-            
-            var dataPayload = dataBuilder.ToArray();
-            return BuildMessage(dataPayload, 2000);
-        }
 
         /// <summary>
         /// Buduje wiadomość FIS API z nagłówkiem, danymi i stopką
         /// POPRAWIONY: API version dla SLE V5 to '0'
         /// POPRAWIONY: Używa przydzielonego Calling ID zamiast zer
+        /// </summary>
+        /// <summary>
+        /// Buduje wiadomość FIS API z nagłówkiem, danymi i stopką
+        /// POPRAWIONY: API version dla różnych requestów
         /// </summary>
         private byte[] BuildMessage(byte[] dataPayload, int requestNumber)
         {
@@ -528,45 +775,121 @@ namespace Cross_FIS_API_1._2.Models
             using (var ms = new System.IO.MemoryStream(message))
             using (var writer = new System.IO.BinaryWriter(ms))
             {
-                // LG (2 bajty)
+                // LG (2 bajty) - little endian!
                 writer.Write((byte)(totalLength % 256));
                 writer.Write((byte)(totalLength / 256));
                 
+                Debug.WriteLine($"[SLE] Total message length: {totalLength}");
+                
                 // HEADER (32 bajty)
-                writer.Write(Stx);
+                writer.Write(Stx); // STX = 0x02
                 
-                // API version (1 bajt) - KRYTYCZNE: ' ' (spacja) dla SLE V4/kompatybilności z request 2017
-                // Request 2017 nie jest dostępny w API V5, wymaga V4!
-                writer.Write((byte)' '); // SLE V4 compatibility
+                // API version (1 bajt)
+                // KRYTYCZNE: Dla request 2000 używamy API V3 = '0'
+                if (requestNumber == 2000 || requestNumber == 2019)
+                {
+                    writer.Write((byte)'0'); // API V3
+                    Debug.WriteLine($"[SLE] API Version: 0 (V3) for request {requestNumber}");
+                }
+                else if (requestNumber == 2017)
+                {
+                    writer.Write((byte)' '); // API V4 dla subscriptions
+                    Debug.WriteLine($"[SLE] API Version: space (V4) for request {requestNumber}");
+                }
+                else
+                {
+                    writer.Write((byte)'0'); // Default V3
+                    Debug.WriteLine($"[SLE] API Version: 0 (V3 default)");
+                }
                 
-                writer.Write(Encoding.ASCII.GetBytes((HeaderLength + dataLength + FooterLength).ToString().PadLeft(5, '0')));
-                writer.Write(Encoding.ASCII.GetBytes(_subnode.PadLeft(5, '0'))); // Called logical ID
-                writer.Write(Encoding.ASCII.GetBytes(new string(' ', 5))); // Filler
+                // Length (5 bajtów ASCII)
+                int contentLength = HeaderLength + dataLength + FooterLength;
+                writer.Write(Encoding.ASCII.GetBytes(contentLength.ToString().PadLeft(5, '0')));
+                Debug.WriteLine($"[SLE] Content length: {contentLength}");
                 
-                // KRYTYCZNE: Używamy przydzielonego przez serwer numeru logicznego
-                writer.Write(Encoding.ASCII.GetBytes(_assignedCallingId.PadLeft(5, '0'))); // Calling logical ID
+                // Called logical ID (5 bajtów) - server subnode
+                writer.Write(Encoding.ASCII.GetBytes(_subnode.PadLeft(5, '0')));
+                Debug.WriteLine($"[SLE] Called ID (server): {_subnode}");
                 
-                writer.Write(Encoding.ASCII.GetBytes(new string(' ', 2))); // Filler
-                writer.Write(Encoding.ASCII.GetBytes(requestNumber.ToString().PadLeft(5, '0'))); // Request number
-                writer.Write(Encoding.ASCII.GetBytes(new string(' ', 3))); // Filler
+                // Filler (5 bajtów spacji)
+                writer.Write(Encoding.ASCII.GetBytes(new string(' ', 5)));
+                
+                // Calling logical ID (5 bajtów) - nasz assigned ID
+                writer.Write(Encoding.ASCII.GetBytes(_assignedCallingId.PadLeft(5, '0')));
+                Debug.WriteLine($"[SLE] Calling ID (us): {_assignedCallingId}");
+                
+                // Filler (2 bajty spacji)
+                writer.Write(Encoding.ASCII.GetBytes(new string(' ', 2)));
+                
+                // Request number (5 bajtów)
+                writer.Write(Encoding.ASCII.GetBytes(requestNumber.ToString().PadLeft(5, '0')));
+                Debug.WriteLine($"[SLE] Request number: {requestNumber}");
+                
+                // Filler (3 bajty spacji)
+                writer.Write(Encoding.ASCII.GetBytes(new string(' ', 3)));
                 
                 // DATA
                 writer.Write(dataPayload);
+                Debug.WriteLine($"[SLE] Data payload: {dataPayload.Length} bytes");
                 
                 // FOOTER (3 bajty)
                 writer.Write(Encoding.ASCII.GetBytes(new string(' ', 2)));
-                writer.Write(Etx);
+                writer.Write(Etx); // ETX = 0x03
             }
+            
+            // Hex dump całej wiadomości
+            Debug.WriteLine($"[SLE] === COMPLETE MESSAGE HEX DUMP ===");
+            Debug.WriteLine($"[SLE] Total: {message.Length} bytes");
+            
+            for (int i = 0; i < message.Length; i += 16)
+            {
+                int len = Math.Min(16, message.Length - i);
+                
+                // Offset
+                string offset = $"{i:X4}";
+                
+                // Hex
+                string hex = BitConverter.ToString(message, i, len).Replace("-", " ");
+                
+                // ASCII
+                string ascii = "";
+                for (int j = 0; j < len; j++)
+                {
+                    byte b = message[i + j];
+                    if (b >= 32 && b < 127)
+                        ascii += (char)b;
+                    else
+                        ascii += '.';
+                }
+                
+                Debug.WriteLine($"[SLE] {offset}  {hex,-48}  |{ascii}|");
+            }
+            Debug.WriteLine($"[SLE] === END MESSAGE DUMP ===");
             
             return message;
         }
 
+        /// <summary>
+        /// Koduje pole w formacie GL
+        /// Format: [LENGTH+32][DATA]
+        /// </summary>
         private byte[] EncodeField(string value)
         {
+            if (string.IsNullOrEmpty(value))
+            {
+                // Puste pole - zwróć pojedynczą spację
+                return new byte[] { 33, 32 }; // LENGTH=1+32=33, DATA=' '
+            }
+    
             var valueBytes = Encoding.ASCII.GetBytes(value);
             var encoded = new byte[valueBytes.Length + 1];
             encoded[0] = (byte)(valueBytes.Length + 32);
             Array.Copy(valueBytes, 0, encoded, 1, valueBytes.Length);
+    
+            // Debug
+            string hex = BitConverter.ToString(encoded).Replace("-", " ");
+            Debug.WriteLine($"[SLE] EncodeField('{value}') -> [{hex}]");
+    
             return encoded;
         }
 

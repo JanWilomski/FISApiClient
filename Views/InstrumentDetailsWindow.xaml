@@ -811,6 +811,115 @@
                         <ComboBoxItem Content="Auction (V)" Tag="V"/>
                         <ComboBoxItem Content="Closing (C)" Tag="C"/>
                     </ComboBox>
+                                        
+                                        
+                                        <!-- Po sekcji "Ważność" dodaj: -->
+
+                    <!-- Separator -->
+                    <Border Height="1" Background="#EEEEEE" Margin="0,0,0,20"/>
+
+                    <!-- FIS Workstation Parameters (Collapsible) -->
+                    <Expander Header="⚙ Parametry FIS Workstation" 
+                              IsExpanded="False"
+                              Margin="0,0,0,15">
+                        <StackPanel Margin="10,10,0,0">
+                            <!-- Client Code Type -->
+                            <TextBlock Text="Origin (Client Code Type):"
+                                      FontSize="11"
+                                      Foreground="#666666"
+                                      Margin="0,0,0,5"/>
+                            <ComboBox SelectedValue="{Binding ClientCodeType}"
+                                     FontSize="12"
+                                     Padding="8,6"
+                                     Margin="0,0,0,12">
+                                <ComboBoxItem Content="Client (C)" Tag="C"/>
+                                <ComboBoxItem Content="House (H)" Tag="H"/>
+                                <ComboBoxItem Content="Liquidity Provider (L)" Tag="L"/>
+                            </ComboBox>
+                            
+                            <!-- Clearing Account -->
+                            <TextBlock Text="Clearing Account:"
+                                      FontSize="11"
+                                      Foreground="#666666"
+                                      Margin="0,0,0,5"/>
+                            <TextBox Text="{Binding ClearingAccount, UpdateSourceTrigger=PropertyChanged}"
+                                    Style="{StaticResource OrderTextBox}"
+                                    Margin="0,0,0,12"/>
+                            
+                            <!-- Allocation Code -->
+                            <TextBlock Text="Allocation Code (Clearing Firm):"
+                                      FontSize="11"
+                                      Foreground="#666666"
+                                      Margin="0,0,0,5"/>
+                            <TextBox Text="{Binding AllocationCode, UpdateSourceTrigger=PropertyChanged}"
+                                    Style="{StaticResource OrderTextBox}"
+                                    Margin="0,0,0,12"/>
+                            
+                            <!-- Floor Trader ID -->
+                            <TextBlock Text="Floor Trader ID (Own Broker D):"
+                                      FontSize="11"
+                                      Foreground="#666666"
+                                      Margin="0,0,0,5"/>
+                            <TextBox Text="{Binding FloorTraderId, UpdateSourceTrigger=PropertyChanged}"
+                                    Style="{StaticResource OrderTextBox}"
+                                    Margin="0,0,0,12"/>
+                            
+                            <!-- Client Reference -->
+                            <TextBlock Text="Client Reference (Cl. Ref):"
+                                      FontSize="11"
+                                      Foreground="#666666"
+                                      Margin="0,0,0,5"/>
+                            <TextBox Text="{Binding ClientReference, UpdateSourceTrigger=PropertyChanged}"
+                                    Style="{StaticResource OrderTextBox}"
+                                    MaxLength="8"
+                                    Margin="0,0,0,12"/>
+                            
+                            <!-- Memo -->
+                            <TextBlock Text="Memo:"
+                                      FontSize="11"
+                                      Foreground="#666666"
+                                      Margin="0,0,0,5"/>
+                            <TextBox Text="{Binding Memo, UpdateSourceTrigger=PropertyChanged}"
+                                    Style="{StaticResource OrderTextBox}"
+                                    MaxLength="18"
+                                    Margin="0,0,0,12"/>
+                            
+                            <!-- Second Client Code Type -->
+                            <TextBlock Text="Originator Origin:"
+                                      FontSize="11"
+                                      Foreground="#666666"
+                                      Margin="0,0,0,5"/>
+                            <ComboBox SelectedValue="{Binding SecondClientCodeType}"
+                                     FontSize="12"
+                                     Padding="8,6"
+                                     Margin="0,0,0,12">
+                                <ComboBoxItem Content="Any Origin (Space)" Tag=" "/>
+                                <ComboBoxItem Content="PAM Origin (P)" Tag="P"/>
+                                <ComboBoxItem Content="Broker (B)" Tag="B"/>
+                                <ComboBoxItem Content="Internet (I)" Tag="I"/>
+                                <ComboBoxItem Content="DMA (D)" Tag="D"/>
+                                <ComboBoxItem Content="Cellphone (C)" Tag="C"/>
+                            </ComboBox>
+                            
+                            <!-- Custom Field -->
+                            <TextBlock Text="Custom (Client Free Field 1):"
+                                      FontSize="11"
+                                      Foreground="#666666"
+                                      Margin="0,0,0,5"/>
+                            <TextBox Text="{Binding ClientFreeField1, UpdateSourceTrigger=PropertyChanged}"
+                                    Style="{StaticResource OrderTextBox}"
+                                    MaxLength="16"
+                                    Margin="0,0,0,12"/>
+                            
+                            <!-- Currency -->
+                            <TextBlock Text="Currency:"
+                                      FontSize="11"
+                                      Foreground="#666666"
+                                      Margin="0,0,0,5"/>
+                            <TextBox Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}"
+                                    Style="{StaticResource OrderTextBox}"/>
+                        </StackPanel>
+                    </Expander>
 
                     <!-- Send Order Button -->
                     <Button Content="🚀 Wyślij zlecenie"

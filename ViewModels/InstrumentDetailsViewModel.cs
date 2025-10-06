@@ -369,6 +369,12 @@ namespace Cross_FIS_API_1._2.ViewModels
                 $"Ilość: {OrderQuantity}\n" +
                 $"Modalność: {modalityText}{priceText}\n" +
                 $"Ważność: {GetValidityDescription(SelectedValidity)}\n\n" +
+                $"--- Parametry FIS ---\n" +
+                $"Client Code Type: {ClientCodeType}\n" +
+                $"Clearing Account: {ClearingAccount}\n" +
+                $"Allocation Code: {AllocationCode}\n" +
+                $"Floor Trader ID: {FloorTraderId}\n" +
+                $"Client Reference: {ClientReference}\n\n" +
                 $"GLID: {Glid}",
                 "Potwierdzenie zlecenia",
                 MessageBoxButton.YesNo,
@@ -398,8 +404,16 @@ namespace Cross_FIS_API_1._2.ViewModels
                     SelectedModality,
                     price,
                     SelectedValidity,
-                    "", // clientReference
-                    "" // internalReference
+                    ClientReference,        // Cl. Ref: 784
+                    "",                     // Internal reference (auto-generated)
+                    ClientCodeType,         // Origin: Client
+                    ClearingAccount,        // Clearing Account: 0100
+                    AllocationCode,         // Allocation receptor: 0955
+                    Memo,                   // Memo: 7841
+                    SecondClientCodeType,   // Originator Origin: External B
+                    FloorTraderId,          // Own Broker D: 0955
+                    ClientFreeField1,       // Custom: 100
+                    Currency                // Currency: PLN
                 );
 
                 if (success)
@@ -411,7 +425,9 @@ namespace Cross_FIS_API_1._2.ViewModels
                         $"- Instrument: {Symbol}\n" +
                         $"- Strona: {sideText}\n" +
                         $"- Ilość: {quantity}\n" +
-                        $"- Cena: {(price > 0 ? price.ToString("N2") : "Market")}\n\n" +
+                        $"- Cena: {(price > 0 ? price.ToString("N2") : "Market")}\n" +
+                        $"- Clearing Account: {ClearingAccount}\n" +
+                        $"- Client Code Type: {ClientCodeType}\n\n" +
                         $"Oczekuj na potwierdzenie w systemie real-time (request 2019).",
                         "Zlecenie wysłane",
                         MessageBoxButton.OK,
@@ -422,7 +438,7 @@ namespace Cross_FIS_API_1._2.ViewModels
                 {
                     StatusMessage = "✗ Błąd wysyłania zlecenia";
                     MessageBox.Show(
-                        "Nie udało się wysłać zlecenia.\nSprawdź połączenie z serwerem SLE.",
+                        "Nie udało się wysłać zlecenia.\nSprawdź połączenie z serwerem SLE i logi debugowania.",
                         "Błąd",
                         MessageBoxButton.OK,
                         MessageBoxImage.Error
@@ -702,5 +718,73 @@ namespace Cross_FIS_API_1._2.ViewModels
         {
             _mdsService.InstrumentDetailsReceived -= OnInstrumentDetailsReceived;
         }
+        
+        
+        #region FIS Workstation Parameters
+
+        private string _clientCodeType = "C"; // Origin: Client
+        public string ClientCodeType
+        {
+            get => _clientCodeType;
+            set => SetProperty(ref _clientCodeType, value);
+        }
+
+        private string _clearingAccount = "0100"; // Clearing Account
+        public string ClearingAccount
+        {
+            get => _clearingAccount;
+            set => SetProperty(ref _clearingAccount, value);
+        }
+
+        private string _allocationCode = "0955"; // Allocation receptor
+        public string AllocationCode
+        {
+            get => _allocationCode;
+            set => SetProperty(ref _allocationCode, value);
+        }
+
+        private string _memo = "7841"; // Memo
+        public string Memo
+        {
+            get => _memo;
+            set => SetProperty(ref _memo, value);
+        }
+
+        private string _secondClientCodeType = "B"; // Originator Origin: External B (Broker)
+        public string SecondClientCodeType
+        {
+            get => _secondClientCodeType;
+            set => SetProperty(ref _secondClientCodeType, value);
+        }
+
+        private string _floorTraderId = "0955"; // Own Broker D
+        public string FloorTraderId
+        {
+            get => _floorTraderId;
+            set => SetProperty(ref _floorTraderId, value);
+        }
+
+        private string _clientFreeField1 = "100"; // Custom
+        public string ClientFreeField1
+        {
+            get => _clientFreeField1;
+            set => SetProperty(ref _clientFreeField1, value);
+        }
+
+        private string _clientReference = "784"; // Cl. Ref
+        public string ClientReference
+        {
+            get => _clientReference;
+            set => SetProperty(ref _clientReference, value);
+        }
+
+        private string _currency = "PLN"; // Currency
+        public string Currency
+        {
+            get => _currency;
+            set => SetProperty(ref _currency, value);
+        }
+
+        #endregion
     }
 }
