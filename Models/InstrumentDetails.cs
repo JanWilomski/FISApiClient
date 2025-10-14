@@ -3,6 +3,7 @@ namespace Cross_FIS_API_1._2.Models
     public class InstrumentDetails
     {
         public string GlidAndSymbol { get; set; } = string.Empty;
+        public string LocalCode { get; set; } = string.Empty;
         public long BidQuantity { get; set; }
         public decimal BidPrice { get; set; }
         public decimal AskPrice { get; set; }

@@ -365,12 +365,11 @@ namespace Cross_FIS_API_1._2.Models
 
                 for (int i = 0; i < numberOfGlid; i++)
                 {
-                    string glidAndSymbol = DecodeField(response, ref position);
-                    string name = DecodeField(response, ref position);
-                    DecodeField(response, ref position);
-                    string isin = DecodeField(response, ref position);
-                    DecodeField(response, ref position);
-
+                    string glidAndSymbol = DecodeField(response, ref position);  // Pozycja 0: GLID + Stockcode
+                    string name = DecodeField(response, ref position);           // Pozycja 1: Stock name
+                    string localCode = DecodeField(response, ref position);      // Pozycja 2: LOCAL CODE ✓ ZMIENIONE
+                    string isin = DecodeField(response, ref position);           // Pozycja 3: ISIN code
+                    DecodeField(response, ref position);                         // Pozycja 4: Quotation group number
                     if (!string.IsNullOrEmpty(glidAndSymbol) && glidAndSymbol.Length >= 12)
                     {
                         var instrument = new Instrument
@@ -464,6 +463,12 @@ namespace Cross_FIS_API_1._2.Models
                 if (allFields.Count > 14) details.VariationSign = allFields[14];
                 // Field 15 - skip
                 if (allFields.Count > 16) details.ClosePrice = ParseDecimal(allFields[16]);
+                
+                if (allFields.Count > 42)
+                {
+                    details.LocalCode = allFields[42];
+                    Debug.WriteLine($"[MDS] LocalCode (position 42): '{details.LocalCode}'");
+                }
                 
                 // Szukaj ISIN i TradingPhase w dalszych polach
                 if (allFields.Count > 88) details.ISIN = allFields[88];

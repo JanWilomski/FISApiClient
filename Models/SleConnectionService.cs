@@ -684,20 +684,11 @@ namespace Cross_FIS_API_1._2.Models
                 // HEADER (32 bajty)
                 writer.Write(Stx); // STX = 0x02
                 
-                // API version (1 bajt)
-                // Dla request 2000/2019 używamy API V3 = '0'
-                if (requestNumber == 2000 || requestNumber == 2019)
-                {
-                    writer.Write((byte)'0'); // API V3
-                }
-                else if (requestNumber == 2017)
-                {
-                    writer.Write((byte)' '); // API V4
-                }
-                else
-                {
-                    writer.Write((byte)'0'); // Default V3
-                }
+
+                
+                
+                writer.Write((byte)' ');
+                
                 
                 // Length (5 bajtów ASCII)
                 int contentLength = HeaderLength + dataLength + FooterLength;
@@ -728,6 +719,14 @@ namespace Cross_FIS_API_1._2.Models
                 writer.Write(Encoding.ASCII.GetBytes(new string(' ', 2)));
                 writer.Write(Etx); // ETX = 0x03
             }
+            
+            // Hex dump dla weryfikacji nagłówka
+            Debug.WriteLine($"[SLE] === MESSAGE HEADER HEX ===");
+            string headerHex = BitConverter.ToString(message, 0, Math.Min(HeaderLength + 2, message.Length)).Replace("-", " ");
+            Debug.WriteLine($"[SLE] {headerHex}");
+            Debug.WriteLine($"[SLE] Position 3 (API Ver): 0x{message[3]:X2} = '{(char)message[3]}'");
+            Debug.WriteLine($"[SLE] Position 26-30 (Request): {Encoding.ASCII.GetString(message, 26, 5)}");
+            Debug.WriteLine($"[SLE] ==============================");
             
             return message;
         }
