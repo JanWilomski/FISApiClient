@@ -390,30 +390,31 @@ namespace Cross_FIS_API_1._2.ViewModels
             try
             {
                 long quantity = long.Parse(OrderQuantity);
-                decimal price = SelectedModality == "L" ? 
-                    decimal.Parse(OrderPrice, System.Globalization.NumberStyles.Any, 
-                                System.Globalization.CultureInfo.InvariantCulture) : 0;
+                decimal price = !string.IsNullOrEmpty(OrderPrice) && SelectedModality == "L" 
+                    ? decimal.Parse(OrderPrice, System.Globalization.NumberStyles.Any, 
+                                    System.Globalization.CultureInfo.InvariantCulture) : 0;
 
                 int side = IsBuy ? 0 : 1;
-                string glidAndSymbol = Glid + Symbol;
-
+                
+                // ⭐ ZMIANA: przekaż LocalCode i Glid osobno
                 bool success = await _sleService.SendOrderAsync(
-                    glidAndSymbol,
+                    _instrument.LocalCode,  // ← LocalCode do pola G (Stockcode)
+                    _instrument.Glid,       // ← GLID do Field 106
                     side,
                     quantity,
                     SelectedModality,
                     price,
                     SelectedValidity,
-                    ClientReference,        // Cl. Ref: 784
-                    "",                     // Internal reference (auto-generated)
-                    ClientCodeType,         // Origin: Client
-                    ClearingAccount,        // Clearing Account: 0100
-                    AllocationCode,         // Allocation receptor: 0955
-                    Memo,                   // Memo: 7841
-                    SecondClientCodeType,   // Originator Origin: External B
-                    FloorTraderId,          // Own Broker D: 0955
-                    ClientFreeField1,       // Custom: 100
-                    Currency                // Currency: PLN
+                    ClientReference,
+                    "",
+                    ClientCodeType,
+                    ClearingAccount,
+                    AllocationCode,
+                    Memo,
+                    SecondClientCodeType,
+                    FloorTraderId,
+                    ClientFreeField1,
+                    Currency
                 );
 
                 if (success)
@@ -422,7 +423,8 @@ namespace Cross_FIS_API_1._2.ViewModels
                     MessageBox.Show(
                         $"Zlecenie zostało wysłane do serwera SLE.\n\n" +
                         $"Szczegóły:\n" +
-                        $"- Instrument: {Symbol}\n" +
+                        $"- Instrument: {Symbol} (LocalCode: {_instrument.LocalCode})\n" +
+                        $"- GLID: {Glid}\n" +
                         $"- Strona: {sideText}\n" +
                         $"- Ilość: {quantity}\n" +
                         $"- Cena: {(price > 0 ? price.ToString("N2") : "Market")}\n" +
@@ -449,7 +451,7 @@ namespace Cross_FIS_API_1._2.ViewModels
             {
                 StatusMessage = $"✗ Błąd: {ex.Message}";
                 MessageBox.Show(
-                    $"Wystąpił błąd podczas wysyłania zlecenia:\n{ex.Message}",
+                    $"Wystąpił błąd podczas składania zlecenia:\n{ex.Message}",
                     "Błąd",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error
@@ -458,6 +460,7 @@ namespace Cross_FIS_API_1._2.ViewModels
             finally
             {
                 IsSendingOrder = false;
+                SendOrderCommand.RaiseCanExecuteChanged();
             }
         }
 

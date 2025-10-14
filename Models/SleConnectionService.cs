@@ -110,40 +110,30 @@ namespace Cross_FIS_API_1._2.Models
         /// Wysyła nowe zlecenie (request 2000)
         /// </summary>
         public async Task<bool> SendOrderAsync(
-            string glidAndSymbol, 
-            int side, 
-            long quantity, 
-            string modality, 
-            decimal price = 0, 
-            string validity = "J",
-            string clientReference = "",
-            string internalReference = "",
-            string clientCodeType = "C",
-            string clearingAccount = "",
-            string allocationCode = "",
-            string memo = "",
-            string secondClientCodeType = "",
-            string floorTraderId = "",
-            string clientFreeField1 = "",
-            string currency = "PLN")
+            string localCode,      // ← ZMIANA: zamiast glidAndSymbol
+            string glid,           // ← NOWY parametr
+            int side,
+            long quantity,
+            string modality,
+            decimal price,
+            string validity,
+            string clientReference,
+            string internalReference,
+            string clientCodeType,
+            string clearingAccount,
+            string allocationCode,
+            string memo,
+            string secondClientCodeType,
+            string floorTraderId,
+            string clientFreeField1,
+            string currency)
         {
-            if (!IsConnected || _stream == null)
-            {
-                Debug.WriteLine("[SLE] Cannot send order - not connected");
-                return false;
-            }
-
-            if (!_realtimeSubscribed)
-            {
-                Debug.WriteLine("[SLE] Cannot send order - not subscribed to real-time replies");
-                return false;
-            }
-
             try
             {
                 Debug.WriteLine($"[SLE] ========================================");
-                Debug.WriteLine($"[SLE] === SENDING ORDER (Request 2000) ===");
-                Debug.WriteLine($"[SLE] Instrument: {glidAndSymbol}");
+                Debug.WriteLine($"[SLE] Sending order with LOCAL CODE");
+                Debug.WriteLine($"[SLE] LocalCode: {localCode}");
+                Debug.WriteLine($"[SLE] GLID: {glid}");
                 Debug.WriteLine($"[SLE] Side: {(side == 0 ? "BUY" : "SELL")}");
                 Debug.WriteLine($"[SLE] Quantity: {quantity}");
                 Debug.WriteLine($"[SLE] Modality: {modality}");
@@ -151,7 +141,7 @@ namespace Cross_FIS_API_1._2.Models
                 Debug.WriteLine($"[SLE] Validity: {validity}");
 
                 byte[] orderRequest = BuildOrderRequest(
-                    glidAndSymbol, side, quantity, modality, price, validity,
+                    localCode, glid, side, quantity, modality, price, validity,
                     clientReference, internalReference, clientCodeType, clearingAccount,
                     allocationCode, memo, secondClientCodeType, floorTraderId,
                     clientFreeField1, currency);
@@ -161,7 +151,7 @@ namespace Cross_FIS_API_1._2.Models
 
                 Debug.WriteLine($"[SLE] ✓ Order sent successfully");
                 Debug.WriteLine($"[SLE] ========================================");
-                
+        
                 return true;
             }
             catch (Exception ex)
@@ -470,8 +460,12 @@ namespace Cross_FIS_API_1._2.Models
         /// - Bitmap: Dla każdego pola [Field_ID jako GL][Value jako GL]
         /// - PUSTE pola NIE są wysyłane
         /// </summary>
+        /// <summary>
+        /// POPRAWIONY BuildOrderRequest - używa LocalCode w stockcode i GLID w Field 106
+        /// </summary>
         private byte[] BuildOrderRequest(
-            string glidAndSymbol,
+            string localCode,      // ← ZMIANA: LocalCode dla pola G
+            string glid,           // ← NOWY: GLID dla Field 106
             int side,
             long quantity,
             string modality,
@@ -491,7 +485,7 @@ namespace Cross_FIS_API_1._2.Models
             var dataBuilder = new List<byte>();
             
             Debug.WriteLine($"[SLE] ========================================");
-            Debug.WriteLine($"[SLE] Building order request (PROPER BITMAP FORMAT)");
+            Debug.WriteLine($"[SLE] Building order request with LOCAL CODE");
             
             // === HEADER ===
             string userNum = _userNumber.PadLeft(5, '0');
@@ -504,15 +498,15 @@ namespace Cross_FIS_API_1._2.Models
             dataBuilder.Add((byte)'0'); // Command = New order
             Debug.WriteLine($"[SLE] Command: 0 (New)");
             
-            dataBuilder.AddRange(EncodeField(glidAndSymbol));
-            Debug.WriteLine($"[SLE] Stockcode: {glidAndSymbol}");
+            // ⭐ ZMIANA: Użyj LOCAL CODE zamiast GLID+Symbol
+            dataBuilder.AddRange(EncodeField(localCode));
+            Debug.WriteLine($"[SLE] Stockcode (LOCAL CODE): {localCode}");
             
             dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 10)));
             
             Debug.WriteLine($"[SLE] Building bitmap with field IDs:");
             
             // === BITMAP ===
-            // Format: [Field_ID][Value] gdzie oba są w formacie GL
             var bitmapFields = new List<byte>();
             
             // Field 0: Side (MANDATORY)
@@ -568,7 +562,7 @@ namespace Cross_FIS_API_1._2.Models
             bitmapFields.AddRange(EncodeField(clientCodeType));
             Debug.WriteLine($"[SLE] Field #17: Client Code Type = {clientCodeType} *** MANDATORY ***");
             
-            // Field 19: Allocation Code (clearing firm)
+            // Field 19: Allocation Code
             if (!string.IsNullOrEmpty(allocationCode))
             {
                 string allocCode = allocationCode.Substring(0, Math.Min(8, allocationCode.Length));
@@ -586,22 +580,19 @@ namespace Cross_FIS_API_1._2.Models
                 Debug.WriteLine($"[SLE] Field #81: Memo = {memoStr}");
             }
             
-            // Field 91: Application side (opcjonalne)
-            // ' ' = Default, pozostaw puste jeśli nie używamy SOR/DMA
-            
             // Field 92: Hour date station (timestamp)
             string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
             bitmapFields.AddRange(EncodeField("92"));
             bitmapFields.AddRange(EncodeField(timestamp));
             Debug.WriteLine($"[SLE] Field #92: Timestamp = {timestamp}");
             
-            // Field 106: GLID (MANDATORY)
-            string glid = glidAndSymbol.Length >= 12 
-                ? glidAndSymbol.Substring(0, 12) 
-                : glidAndSymbol.PadRight(12, ' ');
+            // ⭐ Field 106: GLID (MANDATORY) - ZMIANA: używaj przekazanego GLID
+            string glidFormatted = glid.Length >= 12 
+                ? glid.Substring(0, 12) 
+                : glid.PadRight(12, ' ');
             bitmapFields.AddRange(EncodeField("106"));
-            bitmapFields.AddRange(EncodeField(glid));
-            Debug.WriteLine($"[SLE] Field #106: GLID = {glid} *** MANDATORY ***");
+            bitmapFields.AddRange(EncodeField(glidFormatted));
+            Debug.WriteLine($"[SLE] Field #106: GLID = {glidFormatted} *** MANDATORY ***");
             
             // Field 132: Clearing Account 1
             if (!string.IsNullOrEmpty(clearingAccount))

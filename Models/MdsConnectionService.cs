@@ -376,6 +376,7 @@ namespace Cross_FIS_API_1._2.Models
                         {
                             Glid = glidAndSymbol.Substring(0, 12),
                             Symbol = glidAndSymbol.Length > 12 ? glidAndSymbol.Substring(12) : "",
+                            LocalCode = localCode,
                             Name = name,
                             ISIN = isin
                         };
