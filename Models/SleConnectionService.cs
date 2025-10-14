@@ -510,32 +510,25 @@ namespace FISApiClient.Models
             var bitmapFields = new List<byte>();
             
             // Field 0: Side (MANDATORY)
-            bitmapFields.AddRange(EncodeField("0"));
             bitmapFields.AddRange(EncodeField(side.ToString()));
             Debug.WriteLine($"[SLE] Field #0: Side = {side}");
             
             // Field 1: Quantity (MANDATORY)
-            bitmapFields.AddRange(EncodeField("1"));
             bitmapFields.AddRange(EncodeField(quantity.ToString(CultureInfo.InvariantCulture)));
             Debug.WriteLine($"[SLE] Field #1: Quantity = {quantity}");
             
             // Field 2: Modality (MANDATORY)
-            bitmapFields.AddRange(EncodeField("2"));
             bitmapFields.AddRange(EncodeField(modality));
             Debug.WriteLine($"[SLE] Field #2: Modality = {modality}");
             
             // Field 3: Price (conditional - tylko dla Limit orders)
             if (modality == "L" && price > 0)
             {
-                bitmapFields.AddRange(EncodeField("3"));
-                // ⭐ USUWAMY KROPKĘ - wysyłaj jako integer (cena × 100)
-                long priceInteger = (long)Math.Round(price * 100);
-                bitmapFields.AddRange(EncodeField(priceInteger.ToString(CultureInfo.InvariantCulture)));
-                Debug.WriteLine($"[SLE] Field #3: Price = {price:F2} → integer = {priceInteger}");
+                bitmapFields.AddRange(EncodeField(price.ToString(CultureInfo.InvariantCulture)));
+                Debug.WriteLine($"[SLE] Field #3: Price = {price:F2} → integer = {price}");
             }
             
             // Field 4: Validity (MANDATORY)
-            bitmapFields.AddRange(EncodeField("4"));
             bitmapFields.AddRange(EncodeField(validity));
             Debug.WriteLine($"[SLE] Field #4: Validity = {validity}");
             
@@ -543,7 +536,6 @@ namespace FISApiClient.Models
             if (!string.IsNullOrEmpty(clientReference))
             {
                 string clRef = clientReference.Substring(0, Math.Min(8, clientReference.Length));
-                bitmapFields.AddRange(EncodeField("10"));
                 bitmapFields.AddRange(EncodeField(clRef));
                 Debug.WriteLine($"[SLE] Field #10: Client Reference = {clRef}");
             }
@@ -555,12 +547,10 @@ namespace FISApiClient.Models
                 intRef = $"ORD{DateTime.Now:yyyyMMddHHmmss}";
             }
             intRef = intRef.Substring(0, Math.Min(16, intRef.Length));
-            bitmapFields.AddRange(EncodeField("12"));
             bitmapFields.AddRange(EncodeField(intRef));
             Debug.WriteLine($"[SLE] Field #12: Internal Reference = {intRef}");
             
             // Field 17: Client Code Type (MANDATORY dla WSE)
-            bitmapFields.AddRange(EncodeField("17"));
             bitmapFields.AddRange(EncodeField(clientCodeType));
             Debug.WriteLine($"[SLE] Field #17: Client Code Type = {clientCodeType} *** MANDATORY ***");
             
@@ -568,7 +558,6 @@ namespace FISApiClient.Models
             if (!string.IsNullOrEmpty(allocationCode))
             {
                 string allocCode = allocationCode.Substring(0, Math.Min(8, allocationCode.Length));
-                bitmapFields.AddRange(EncodeField("19"));
                 bitmapFields.AddRange(EncodeField(allocCode));
                 Debug.WriteLine($"[SLE] Field #19: Allocation Code = {allocCode}");
             }
@@ -577,12 +566,10 @@ namespace FISApiClient.Models
             if (!string.IsNullOrEmpty(memo))
             {
                 string memoStr = memo.Substring(0, Math.Min(18, memo.Length));
-                bitmapFields.AddRange(EncodeField("81"));
                 bitmapFields.AddRange(EncodeField(memoStr));
                 Debug.WriteLine($"[SLE] Field #81: Memo = {memoStr}");
             }
             // Field 91: Application side (MANDATORY dla WSE)
-            bitmapFields.AddRange(EncodeField("91"));
             bitmapFields.AddRange(EncodeField("C")); // C = Client
             Debug.WriteLine($"[SLE] Field #91: Application side = C");
 
@@ -590,22 +577,19 @@ namespace FISApiClient.Models
             
             // Field 92: Hour date station (timestamp)
             string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-            bitmapFields.AddRange(EncodeField("92"));
             bitmapFields.AddRange(EncodeField(timestamp));
             Debug.WriteLine($"[SLE] Field #92: Timestamp = {timestamp}");
             
-            // ⭐ Field 106: GLID (MANDATORY) - ZMIANA: używaj przekazanego GLID
+            // Field 106: GLID (MANDATORY) - ZMIANA: używaj przekazanego GLID
             string glidFormatted = glid.Length >= 12 
                 ? glid.Substring(0, 12) 
                 : glid.PadRight(12, ' ');
-            bitmapFields.AddRange(EncodeField("106"));
             bitmapFields.AddRange(EncodeField(glidFormatted));
             Debug.WriteLine($"[SLE] Field #106: GLID = {glidFormatted} *** MANDATORY ***");
             
             // Field 132: Clearing Account 1
             if (!string.IsNullOrEmpty(clearingAccount))
             {
-                bitmapFields.AddRange(EncodeField("132"));
                 bitmapFields.AddRange(EncodeField(clearingAccount));
                 Debug.WriteLine($"[SLE] Field #132: Clearing Account = {clearingAccount}");
             }
@@ -613,7 +597,6 @@ namespace FISApiClient.Models
             // Field 147: Floor Trader ID
             if (!string.IsNullOrEmpty(floorTraderId))
             {
-                bitmapFields.AddRange(EncodeField("147"));
                 bitmapFields.AddRange(EncodeField(floorTraderId));
                 Debug.WriteLine($"[SLE] Field #147: Floor Trader ID = {floorTraderId}");
             }
@@ -621,7 +604,6 @@ namespace FISApiClient.Models
             // Field 192: Currency
             if (!string.IsNullOrEmpty(currency))
             {
-                bitmapFields.AddRange(EncodeField("192"));
                 bitmapFields.AddRange(EncodeField(currency));
                 Debug.WriteLine($"[SLE] Field #192: Currency = {currency}");
             }
@@ -629,7 +611,6 @@ namespace FISApiClient.Models
             // Field 306: Second Client Code Type
             if (!string.IsNullOrEmpty(secondClientCodeType) && secondClientCodeType != " ")
             {
-                bitmapFields.AddRange(EncodeField("306"));
                 bitmapFields.AddRange(EncodeField(secondClientCodeType));
                 Debug.WriteLine($"[SLE] Field #306: Second Client Code Type = {secondClientCodeType}");
             }
@@ -638,7 +619,6 @@ namespace FISApiClient.Models
             if (!string.IsNullOrEmpty(clientFreeField1))
             {
                 string customField = clientFreeField1.Substring(0, Math.Min(16, clientFreeField1.Length));
-                bitmapFields.AddRange(EncodeField("317"));
                 bitmapFields.AddRange(EncodeField(customField));
                 Debug.WriteLine($"[SLE] Field #317: Client Free Field 1 = {customField}");
             }
