@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Cross_FIS_API_1._2.Helpers
+namespace FISApiClient.Helpers
 {
     public class ViewModelBase : INotifyPropertyChanged
     {

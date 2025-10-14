@@ -1,4 +1,4 @@
-namespace Cross_FIS_API_1._2.Models
+namespace FISApiClient.Models
 {
     public class InstrumentDetails
     {

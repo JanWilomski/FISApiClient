@@ -6,7 +6,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Cross_FIS_API_1._2.Models
+namespace FISApiClient.Models
 {
     public class SleConnectionService
     {
@@ -498,7 +498,7 @@ namespace Cross_FIS_API_1._2.Models
             dataBuilder.Add((byte)'0'); // Command = New order
             Debug.WriteLine($"[SLE] Command: 0 (New)");
             
-            // ⭐ ZMIANA: Użyj LOCAL CODE zamiast GLID+Symbol
+            //LOCAL CODE
             dataBuilder.AddRange(EncodeField(localCode));
             Debug.WriteLine($"[SLE] Stockcode (LOCAL CODE): {localCode}");
             
@@ -516,7 +516,7 @@ namespace Cross_FIS_API_1._2.Models
             
             // Field 1: Quantity (MANDATORY)
             bitmapFields.AddRange(EncodeField("1"));
-            bitmapFields.AddRange(EncodeField(quantity.ToString()));
+            bitmapFields.AddRange(EncodeField(quantity.ToString(CultureInfo.InvariantCulture)));
             Debug.WriteLine($"[SLE] Field #1: Quantity = {quantity}");
             
             // Field 2: Modality (MANDATORY)
@@ -528,8 +528,10 @@ namespace Cross_FIS_API_1._2.Models
             if (modality == "L" && price > 0)
             {
                 bitmapFields.AddRange(EncodeField("3"));
-                bitmapFields.AddRange(EncodeField(price.ToString("F2", CultureInfo.InvariantCulture)));
-                Debug.WriteLine($"[SLE] Field #3: Price = {price:F2}");
+                // ⭐ USUWAMY KROPKĘ - wysyłaj jako integer (cena × 100)
+                long priceInteger = (long)Math.Round(price * 100);
+                bitmapFields.AddRange(EncodeField(priceInteger.ToString(CultureInfo.InvariantCulture)));
+                Debug.WriteLine($"[SLE] Field #3: Price = {price:F2} → integer = {priceInteger}");
             }
             
             // Field 4: Validity (MANDATORY)
@@ -579,6 +581,12 @@ namespace Cross_FIS_API_1._2.Models
                 bitmapFields.AddRange(EncodeField(memoStr));
                 Debug.WriteLine($"[SLE] Field #81: Memo = {memoStr}");
             }
+            // Field 91: Application side (MANDATORY dla WSE)
+            bitmapFields.AddRange(EncodeField("91"));
+            bitmapFields.AddRange(EncodeField("C")); // C = Client
+            Debug.WriteLine($"[SLE] Field #91: Application side = C");
+
+            
             
             // Field 92: Hour date station (timestamp)
             string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");

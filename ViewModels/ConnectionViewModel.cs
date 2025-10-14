@@ -1,10 +1,10 @@
 using System;
 using System.Threading.Tasks;
 using System.Windows;
-using Cross_FIS_API_1._2.Helpers;
-using Cross_FIS_API_1._2.Models;
+using FISApiClient.Helpers;
+using FISApiClient.Models;
 
-namespace Cross_FIS_API_1._2.ViewModels
+namespace FISApiClient.ViewModels
 {
     public class ConnectionViewModel : ViewModelBase
     {
@@ -108,7 +108,7 @@ namespace Cross_FIS_API_1._2.ViewModels
             set => SetProperty(ref _slePort, value);
         }
 
-        private string _sleUser = "461";
+        private string _sleUser = "151";
         public string SleUser
         {
             get => _sleUser;

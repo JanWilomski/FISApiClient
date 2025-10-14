@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Input;
 
-namespace Cross_FIS_API_1._2.Helpers
+namespace FISApiClient.Helpers
 {
     public class RelayCommand : ICommand
     {

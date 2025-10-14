@@ -1,9 +1,9 @@
 using System;
 using System.Windows;
-using Cross_FIS_API_1._2.Helpers;
-using Cross_FIS_API_1._2.Models;
+using FISApiClient.Helpers;
+using FISApiClient.Models;
 
-namespace Cross_FIS_API_1._2.ViewModels
+namespace FISApiClient.ViewModels
 {
     public class InstrumentDetailsViewModel : ViewModelBase
     {
