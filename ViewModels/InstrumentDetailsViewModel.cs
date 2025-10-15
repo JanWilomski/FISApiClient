@@ -396,7 +396,7 @@ namespace FISApiClient.ViewModels
 
                 int side = IsBuy ? 0 : 1;
                 
-                // ⭐ ZMIANA: przekaż LocalCode i Glid osobno
+                
                 bool success = await _sleService.SendOrderAsync(
                     _instrument.LocalCode,  // ← LocalCode do pola G (Stockcode)
                     _instrument.Glid,       // ← GLID do Field 106
@@ -739,7 +739,7 @@ namespace FISApiClient.ViewModels
             set => SetProperty(ref _clearingAccount, value);
         }
 
-        private string _allocationCode = "0955"; // Allocation receptor
+        private string _allocationCode = "0959"; // Allocation receptor
         public string AllocationCode
         {
             get => _allocationCode;
@@ -760,7 +760,7 @@ namespace FISApiClient.ViewModels
             set => SetProperty(ref _secondClientCodeType, value);
         }
 
-        private string _floorTraderId = "0955"; // Own Broker D
+        private string _floorTraderId = "0959"; // Own Broker D
         public string FloorTraderId
         {
             get => _floorTraderId;

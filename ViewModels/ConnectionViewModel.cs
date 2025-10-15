@@ -250,22 +250,22 @@ namespace FISApiClient.ViewModels
                 {
                     IsMdsConnected = true;
                     StatusMessage = $"Pomyślnie połączono z MDS ({MdsIpAddress}:{MdsPort})";
-                    MessageBox.Show(
-                        "Połączenie z serwerem MDS/SLC zostało nawiązane pomyślnie!",
-                        "Sukces",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information
-                    );
+                    // MessageBox.Show(
+                    //     "Połączenie z serwerem MDS/SLC zostało nawiązane pomyślnie!",
+                    //     "Sukces",
+                    //     MessageBoxButton.OK,
+                    //     MessageBoxImage.Information
+                    // );
                 }
                 else
                 {
                     StatusMessage = "Błąd połączenia MDS: Nieprawidłowe dane logowania lub serwer niedostępny";
-                    MessageBox.Show(
-                        "Nie udało się połączyć z serwerem MDS/SLC.\nSprawdź dane połączenia i spróbuj ponownie.",
-                        "Błąd połączenia",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error
-                    );
+                    // MessageBox.Show(
+                    //     "Nie udało się połączyć z serwerem MDS/SLC.\nSprawdź dane połączenia i spróbuj ponownie.",
+                    //     "Błąd połączenia",
+                    //     MessageBoxButton.OK,
+                    //     MessageBoxImage.Error
+                    // );
                 }
             }
             catch (Exception ex)
@@ -359,23 +359,23 @@ namespace FISApiClient.ViewModels
                 {
                     IsSleConnected = true;
                     StatusMessage = $"Pomyślnie połączono z SLE ({SleIpAddress}:{SlePort})";
-                    MessageBox.Show(
-                        "Połączenie z serwerem SLE (Order Entry) zostało nawiązane pomyślnie!\n\n" +
-                        "Teraz możesz składać zlecenia z poziomu szczegółów instrumentu.",
-                        "Sukces",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information
-                    );
+                    // MessageBox.Show(
+                    //     "Połączenie z serwerem SLE (Order Entry) zostało nawiązane pomyślnie!\n\n" +
+                    //     "Teraz możesz składać zlecenia z poziomu szczegółów instrumentu.",
+                    //     "Sukces",
+                    //     MessageBoxButton.OK,
+                    //     MessageBoxImage.Information
+                    // );
                 }
                 else
                 {
                     StatusMessage = "Błąd połączenia SLE: Nieprawidłowe dane logowania lub serwer niedostępny";
-                    MessageBox.Show(
-                        "Nie udało się połączyć z serwerem SLE.\nSprawdź dane połączenia i spróbuj ponownie.",
-                        "Błąd połączenia",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error
-                    );
+                    // MessageBox.Show(
+                    //     "Nie udało się połączyć z serwerem SLE.\nSprawdź dane połączenia i spróbuj ponownie.",
+                    //     "Błąd połączenia",
+                    //     MessageBoxButton.OK,
+                    //     MessageBoxImage.Error
+                    // );
                 }
             }
             catch (Exception ex)

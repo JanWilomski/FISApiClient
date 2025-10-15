@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
@@ -108,6 +109,8 @@ namespace FISApiClient.Models
 
         /// <summary>
         /// Wysyła nowe zlecenie (request 2000)
+        /// client code type v5 590
+        /// v3 84
         /// </summary>
         public async Task<bool> SendOrderAsync(
             string localCode,      // ← ZMIANA: zamiast glidAndSymbol
@@ -464,8 +467,8 @@ namespace FISApiClient.Models
         /// POPRAWIONY BuildOrderRequest - używa LocalCode w stockcode i GLID w Field 106
         /// </summary>
         private byte[] BuildOrderRequest(
-            string localCode,      // ← ZMIANA: LocalCode dla pola G
-            string glid,           // ← NOWY: GLID dla Field 106
+            string localCode,
+            string glid,
             int side,
             long quantity,
             string modality,
@@ -485,7 +488,7 @@ namespace FISApiClient.Models
             var dataBuilder = new List<byte>();
             
             Debug.WriteLine($"[SLE] ========================================");
-            Debug.WriteLine($"[SLE] Building order request with LOCAL CODE");
+            Debug.WriteLine($"[SLE] Building order request with SEQUENTIAL bitmap filling");
             
             // === HEADER ===
             string userNum = _userNumber.PadLeft(5, '0');
@@ -498,45 +501,45 @@ namespace FISApiClient.Models
             dataBuilder.Add((byte)'0'); // Command = New order
             Debug.WriteLine($"[SLE] Command: 0 (New)");
             
-            //LOCAL CODE
+            // G: Stockcode - LOCAL CODE
             dataBuilder.AddRange(EncodeField(localCode));
             Debug.WriteLine($"[SLE] Stockcode (LOCAL CODE): {localCode}");
             
+            // Filler (10 bajtów)
             dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 10)));
             
-            Debug.WriteLine($"[SLE] Building bitmap with field IDs:");
-            
-            // === BITMAP ===
-            var bitmapFields = new List<byte>();
+            // === BITMAP - budujemy słownik pól ===
+            Debug.WriteLine($"[SLE] Building bitmap dictionary:");
+            var fields = new Dictionary<int, string>();
             
             // Field 0: Side (MANDATORY)
-            bitmapFields.AddRange(EncodeField(side.ToString()));
+            fields[0] = side.ToString();
             Debug.WriteLine($"[SLE] Field #0: Side = {side}");
             
             // Field 1: Quantity (MANDATORY)
-            bitmapFields.AddRange(EncodeField(quantity.ToString(CultureInfo.InvariantCulture)));
+            fields[1] = quantity.ToString(CultureInfo.InvariantCulture);
             Debug.WriteLine($"[SLE] Field #1: Quantity = {quantity}");
             
             // Field 2: Modality (MANDATORY)
-            bitmapFields.AddRange(EncodeField(modality));
+            fields[2] = modality;
             Debug.WriteLine($"[SLE] Field #2: Modality = {modality}");
             
             // Field 3: Price (conditional - tylko dla Limit orders)
             if (modality == "L" && price > 0)
             {
-                bitmapFields.AddRange(EncodeField(price.ToString(CultureInfo.InvariantCulture)));
-                Debug.WriteLine($"[SLE] Field #3: Price = {price:F2} → integer = {price}");
+                fields[3] = price.ToString(CultureInfo.InvariantCulture);
+                Debug.WriteLine($"[SLE] Field #3: Price = {price}");
             }
             
             // Field 4: Validity (MANDATORY)
-            bitmapFields.AddRange(EncodeField(validity));
+            fields[4] = validity;
             Debug.WriteLine($"[SLE] Field #4: Validity = {validity}");
             
-            // Field 10: Client reference (opcjonalne)
+            // Field 10: Client reference (optional)
             if (!string.IsNullOrEmpty(clientReference))
             {
                 string clRef = clientReference.Substring(0, Math.Min(8, clientReference.Length));
-                bitmapFields.AddRange(EncodeField(clRef));
+                fields[10] = clRef;
                 Debug.WriteLine($"[SLE] Field #10: Client Reference = {clRef}");
             }
             
@@ -547,81 +550,154 @@ namespace FISApiClient.Models
                 intRef = $"ORD{DateTime.Now:yyyyMMddHHmmss}";
             }
             intRef = intRef.Substring(0, Math.Min(16, intRef.Length));
-            bitmapFields.AddRange(EncodeField(intRef));
+            //fields[12] = intRef;
             Debug.WriteLine($"[SLE] Field #12: Internal Reference = {intRef}");
             
             // Field 17: Client Code Type (MANDATORY dla WSE)
-            bitmapFields.AddRange(EncodeField(clientCodeType));
+            fields[17] = clientCodeType;
             Debug.WriteLine($"[SLE] Field #17: Client Code Type = {clientCodeType} *** MANDATORY ***");
             
             // Field 19: Allocation Code
             if (!string.IsNullOrEmpty(allocationCode))
             {
                 string allocCode = allocationCode.Substring(0, Math.Min(8, allocationCode.Length));
-                bitmapFields.AddRange(EncodeField(allocCode));
+                fields[19] = allocCode;
                 Debug.WriteLine($"[SLE] Field #19: Allocation Code = {allocCode}");
             }
             
-            // Field 81: Memo
+            // Field 81: Memo (optional)
             if (!string.IsNullOrEmpty(memo))
             {
                 string memoStr = memo.Substring(0, Math.Min(18, memo.Length));
-                bitmapFields.AddRange(EncodeField(memoStr));
+                fields[81] = memoStr;
                 Debug.WriteLine($"[SLE] Field #81: Memo = {memoStr}");
             }
-            // Field 91: Application side (MANDATORY dla WSE)
-            bitmapFields.AddRange(EncodeField("C")); // C = Client
-            Debug.WriteLine($"[SLE] Field #91: Application side = C");
-
             
+            
+            
+            // Field 91: Application side not needed
+            //fields[91] = "C"; // C = Client
+            Debug.WriteLine($"[SLE] Field #91: Application side = C");
             
             // Field 92: Hour date station (timestamp)
             string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-            bitmapFields.AddRange(EncodeField(timestamp));
+            fields[92] = timestamp;
             Debug.WriteLine($"[SLE] Field #92: Timestamp = {timestamp}");
             
-            // Field 106: GLID (MANDATORY) - ZMIANA: używaj przekazanego GLID
+            // Field 106: GLID (MANDATORY)
             string glidFormatted = glid.Length >= 12 
                 ? glid.Substring(0, 12) 
                 : glid.PadRight(12, ' ');
-            bitmapFields.AddRange(EncodeField(glidFormatted));
+            fields[106] = glidFormatted;
             Debug.WriteLine($"[SLE] Field #106: GLID = {glidFormatted} *** MANDATORY ***");
+
+            fields[112] = "0959";
             
             // Field 132: Clearing Account 1
             if (!string.IsNullOrEmpty(clearingAccount))
             {
-                bitmapFields.AddRange(EncodeField(clearingAccount));
+                fields[132] = clearingAccount;
                 Debug.WriteLine($"[SLE] Field #132: Clearing Account = {clearingAccount}");
             }
             
-            // Field 147: Floor Trader ID
+            // Field 147: Floor Trader ID (optional)
             if (!string.IsNullOrEmpty(floorTraderId))
             {
-                bitmapFields.AddRange(EncodeField(floorTraderId));
+                fields[147] = floorTraderId;
                 Debug.WriteLine($"[SLE] Field #147: Floor Trader ID = {floorTraderId}");
             }
             
-            // Field 192: Currency
+            // Field 192: Currency (optional)
             if (!string.IsNullOrEmpty(currency))
             {
-                bitmapFields.AddRange(EncodeField(currency));
+                fields[192] = currency;
                 Debug.WriteLine($"[SLE] Field #192: Currency = {currency}");
             }
             
-            // Field 306: Second Client Code Type
-            if (!string.IsNullOrEmpty(secondClientCodeType) && secondClientCodeType != " ")
-            {
-                bitmapFields.AddRange(EncodeField(secondClientCodeType));
-                Debug.WriteLine($"[SLE] Field #306: Second Client Code Type = {secondClientCodeType}");
-            }
             
-            // Field 317: Client Free Field 1
+            
+            
+            
+            // // Field 306: Second Client Code Type (optional)
+            // if (!string.IsNullOrEmpty(secondClientCodeType) && secondClientCodeType != " ")
+            // {
+            //     fields[306] = secondClientCodeType;
+            //     Debug.WriteLine($"[SLE] Field #306: Second Client Code Type = {secondClientCodeType}");
+            // }
+            //
+            // Field 317: Client Free Field 1 (optional)
             if (!string.IsNullOrEmpty(clientFreeField1))
             {
                 string customField = clientFreeField1.Substring(0, Math.Min(16, clientFreeField1.Length));
-                bitmapFields.AddRange(EncodeField(customField));
+                fields[317] = customField;
                 Debug.WriteLine($"[SLE] Field #317: Client Free Field 1 = {customField}");
             }
+            
+            // Field 342: Capacity
+            int capacity = 1;
+            fields[342] = capacity.ToString(CultureInfo.InvariantCulture);
+            Debug.WriteLine($"[SLE] Field #342: Capacity = {capacity}");
+
+            
+            
+            int mifidInternIndic = 4;
+            fields[574]=mifidInternIndic.ToString(CultureInfo.InvariantCulture);
+            
+
+            // Field 1449 Direct Electronic Access
+            int dea = 2;
+            fields[1449]=dea.ToString(CultureInfo.InvariantCulture);
+
+
+            fields[1470] = "222386";
+
+            String edmi = "222674";
+            edmi="123321";
+            fields[1482] = edmi;
+            
+            //3 i -1
+            String eidmid = "4";
+            fields[1483] = eidmid;
+            
+            
+            // Field 1488 Execution Decision Maker Type 
+            int edmt = 1;
+            fields[1488]=edmt.ToString(CultureInfo.InvariantCulture);
+
+            int idmt = 3;
+            //fields[1489] = idmt.ToString(CultureInfo.InvariantCulture);
+          
+            
+            // === SEKWENCYJNE WYPEŁNIANIE BITMAPY ===
+            int maxFieldNumber = fields.Keys.Max();
+            Debug.WriteLine($"[SLE] Max field number: {maxFieldNumber}");
+            Debug.WriteLine($"[SLE] Building sequential bitmap from 0 to {maxFieldNumber}:");
+            
+            var bitmapFields = new List<byte>();
+            int fillerCount = 0;
+            
+            for (int i = 0; i <= maxFieldNumber; i++)
+            {
+                if (fields.ContainsKey(i))
+                {
+                    // Pole ma wartość - koduj w GL
+                    byte[] encoded = EncodeField(fields[i]);
+                    bitmapFields.AddRange(encoded);
+                    
+                    if (i <= 20 || (i >= 90 && i <= 110) || i >= 300) // Loguj tylko istotne pola
+                    {
+                        Debug.WriteLine($"[SLE] Field #{i}: [{fields[i]}] → GL encoded ({encoded.Length} bytes)");
+                    }
+                }
+                else
+                {
+                    // Pole puste - dodaj GL 0 (bajt 32)
+                    bitmapFields.Add(32);
+                    fillerCount++;
+                }
+            }
+            
+            Debug.WriteLine($"[SLE] Total fields: {maxFieldNumber + 1}, Filled: {fields.Count}, Fillers (GL 0): {fillerCount}");
             
             // Dodaj bitmap do dataBuilder
             dataBuilder.AddRange(bitmapFields);
@@ -631,14 +707,28 @@ namespace FISApiClient.Models
             
             var dataPayload = dataBuilder.ToArray();
             
-            // Hex dump
-            Debug.WriteLine($"[SLE] --- DATA PAYLOAD HEX ---");
-            for (int i = 0; i < Math.Min(200, dataPayload.Length); i += 32)
+            // Hex dump pierwszych 200 bajtów
+            Debug.WriteLine($"[SLE] --- DATA PAYLOAD HEX (first 200 bytes) ---");
+            for (int i = 0; i < Math.Min(1400, dataPayload.Length); i += 32)
             {
                 int len = Math.Min(32, dataPayload.Length - i);
                 string hex = BitConverter.ToString(dataPayload, i, len).Replace("-", " ");
                 Debug.WriteLine($"[SLE] {i:D4}: {hex}");
             }
+            
+            // Hex dump końcówki (jeśli payload > 200 bajtów)
+            if (dataPayload.Length > 200)
+            {
+                Debug.WriteLine($"[SLE] --- DATA PAYLOAD HEX (last 100 bytes) ---");
+                int startPos = Math.Max(200, dataPayload.Length - 100);
+                for (int i = startPos; i < dataPayload.Length; i += 32)
+                {
+                    int len = Math.Min(32, dataPayload.Length - i);
+                    string hex = BitConverter.ToString(dataPayload, i, len).Replace("-", " ");
+                    Debug.WriteLine($"[SLE] {i:D4}: {hex}");
+                }
+            }
+            
             Debug.WriteLine($"[SLE] ========================================");
             
             return BuildMessage(dataPayload, 2000);
