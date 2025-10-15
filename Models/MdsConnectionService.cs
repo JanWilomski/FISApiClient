@@ -75,7 +75,7 @@ namespace FISApiClient.Models
         private async Task ListenForMessages()
         {
             if (_stream == null) return;
-            var buffer = new byte[8192]; // Zmniejszony bufor do czytania
+            var buffer = new byte[8192];
     
             Debug.WriteLine("[MDS] ListenForMessages started");
     
@@ -120,27 +120,22 @@ namespace FISApiClient.Models
         
         private void ProcessBufferedMessages()
         {
-            while (_receiveBuffer.Count >= 3) // Minimum: 2 bajty długości + STX
+            while (_receiveBuffer.Count >= 3)
             {
-                // NOWE: Pokaż pierwsze bajty bufora jako hex
                 int bytesToShow = Math.Min(30, _receiveBuffer.Count);
                 string hexDump = string.Join(" ", _receiveBuffer.Take(bytesToShow).Select(b => b.ToString("X2")));
                 Debug.WriteLine($"[MDS] Buffer first {bytesToShow} bytes: {hexDump}");
                 
-                // NOWA LOGIKA: Szukaj wzorca [DŁUGOŚĆ_LOW] [DŁUGOŚĆ_HIGH] [STX]
                 bool foundValidMessage = false;
                 int messageStart = -1;
                 int totalMessageLength = 0;
                 
                 for (int i = 0; i <= _receiveBuffer.Count - 3; i++)
                 {
-                    // Sprawdź czy na pozycji i+2 jest STX
                     if (_receiveBuffer[i + 2] == Stx)
                     {
-                        // Oblicz długość z bajtów na pozycji i i i+1
                         int length = _receiveBuffer[i] + 256 * _receiveBuffer[i + 1];
                         
-                        // Walidacja długości (rozsądne wartości dla FIS API)
                         if (length >= 35 && length <= 30000)
                         {
                             Debug.WriteLine($"[MDS] Found valid message pattern at position {i}:");
@@ -163,14 +158,12 @@ namespace FISApiClient.Models
                 {
                     Debug.WriteLine("[MDS] No valid message pattern found in buffer");
                     
-                    // Usuń pierwszy bajt i spróbuj ponownie
                     if (_receiveBuffer.Count > 0)
                     {
                         Debug.WriteLine($"[MDS] Removing first byte: {_receiveBuffer[0]:X2}");
                         _receiveBuffer.RemoveAt(0);
                     }
                     
-                    // Jeśli bufor ma więcej niż 100 bajtów bez valid message, wyczyść go
                     if (_receiveBuffer.Count > 100)
                     {
                         Debug.WriteLine("[MDS] Buffer too large without valid message, clearing");
@@ -183,28 +176,23 @@ namespace FISApiClient.Models
                 Debug.WriteLine($"[MDS] Message starts at position {messageStart}, total length: {totalMessageLength}");
                 Debug.WriteLine($"[MDS] Buffer has {_receiveBuffer.Count} bytes, need {messageStart + totalMessageLength}");
                 
-                // Sprawdź czy mamy całą wiadomość
                 if (messageStart + totalMessageLength > _receiveBuffer.Count)
                 {
                     int needed = messageStart + totalMessageLength - _receiveBuffer.Count;
                     Debug.WriteLine($"[MDS] Incomplete message: need {needed} more bytes");
-                    return; // Czekaj na więcej danych
+                    return;
                 }
                 
                 Debug.WriteLine("[MDS] Complete message received, processing...");
                 
-                // Wyciągnij całą wiadomość (z bajtami długości)
                 byte[] messageBytes = _receiveBuffer.GetRange(messageStart, totalMessageLength).ToArray();
                 
-                // Pokaż początek wiadomości
                 int msgHexLen = Math.Min(50, messageBytes.Length);
                 string msgHex = string.Join(" ", messageBytes.Take(msgHexLen).Select(b => b.ToString("X2")));
                 Debug.WriteLine($"[MDS] Message first {msgHexLen} bytes: {msgHex}");
                 
-                // Przetwórz wiadomość (STX jest na pozycji 2 w messageBytes)
                 ProcessSingleMessage(messageBytes, totalMessageLength, 2);
                 
-                // Usuń przetworzoną wiadomość z bufora
                 _receiveBuffer.RemoveRange(0, messageStart + totalMessageLength);
                 
                 Debug.WriteLine($"[MDS] Message processed, remaining buffer: {_receiveBuffer.Count} bytes");
@@ -289,10 +277,6 @@ namespace FISApiClient.Models
             Debug.WriteLine($"[MDS] === SENDING REQUEST ===");
             Debug.WriteLine($"[MDS] Requesting instrument details for: '{glidAndStockcode}'");
     
-            // NOWE: Wyczyść bufor przed nowym requestem (opcjonalne, ale bezpieczniejsze)
-            // _receiveBuffer.Clear();
-            // Debug.WriteLine($"[MDS] Receive buffer cleared");
-    
             byte[] request = BuildStockWatchRequest(glidAndStockcode);
     
             Debug.WriteLine($"[MDS] Request built, size: {request.Length} bytes");
@@ -302,55 +286,6 @@ namespace FISApiClient.Models
     
             Debug.WriteLine($"[MDS] Request sent and flushed");
             Debug.WriteLine($"[MDS] === REQUEST COMPLETE ===");
-        }
-
-        private void ProcessIncomingMessage(byte[] response, int length)
-        {
-            int currentPos = 0;
-            while (currentPos < length)
-            {
-                var stxPos = Array.IndexOf(response, Stx, currentPos);
-                if (stxPos == -1) break;
-
-                if (stxPos < 2)
-                {
-                    Debug.WriteLine("MDS: Incomplete message fragment (STX at pos < 2). Skipping.");
-                    
-                    currentPos = stxPos + 1;
-                    continue;
-                }
-                
-                int totalMessageLength = response[stxPos - 2] + 256 * response[stxPos - 1];
-
-                if (stxPos + totalMessageLength > length)
-                {
-                    Debug.WriteLine("MDS: Buffer does not contain the full message. Waiting for more data.");
-                    break;
-                }
-
-                string requestNumberStr = Encoding.ASCII.GetString(response, stxPos + 24, 5);
-                if (int.TryParse(requestNumberStr, out int requestNumber))
-                {
-                    Debug.WriteLine($"[MDS] Received response with request number: {requestNumber}");
-                    
-                    switch(requestNumber)
-                    {
-                        case 5108:
-                            ProcessDictionaryResponse(response, length, stxPos);
-                            break;
-                        case 1000: 
-                        case 1001:
-                        case 1003:
-                            Debug.WriteLine($"[MDS] Processing instrument details response (request {requestNumber})");
-                            ProcessInstrumentDetailsResponse(response, length, stxPos);
-                            break;
-                        default:
-                            Debug.WriteLine($"[MDS] Unhandled request number: {requestNumber}");
-                            break;
-                    }
-                }
-                currentPos = stxPos + totalMessageLength;
-            }
         }
 
         private void ProcessDictionaryResponse(byte[] response, int length, int stxPos)
@@ -367,9 +302,10 @@ namespace FISApiClient.Models
                 {
                     string glidAndSymbol = DecodeField(response, ref position);  // Pozycja 0: GLID + Stockcode
                     string name = DecodeField(response, ref position);           // Pozycja 1: Stock name
-                    string localCode = DecodeField(response, ref position);      // Pozycja 2: LOCAL CODE ✓ ZMIENIONE
+                    string localCode = DecodeField(response, ref position);      // Pozycja 2: LOCAL CODE
                     string isin = DecodeField(response, ref position);           // Pozycja 3: ISIN code
                     DecodeField(response, ref position);                         // Pozycja 4: Quotation group number
+                    
                     if (!string.IsNullOrEmpty(glidAndSymbol) && glidAndSymbol.Length >= 12)
                     {
                         var instrument = new Instrument
@@ -398,10 +334,12 @@ namespace FISApiClient.Models
                 int pos = stxPos + HeaderLength;
                 var details = new InstrumentDetails();
 
+                // H0: Chaining (1 bajt ASCII)
                 byte chaining = response[pos++];
                 Debug.WriteLine($"[MDS] === PARSING INSTRUMENT DETAILS ===");
                 Debug.WriteLine($"[MDS] Chaining: {chaining}");
 
+                // H1: GLID + Stockcode (pole GL-encoded)
                 details.GlidAndSymbol = DecodeField(response, ref pos);
                 Debug.WriteLine($"[MDS] GlidAndSymbol: '{details.GlidAndSymbol}'");
                 
@@ -411,29 +349,39 @@ namespace FISApiClient.Models
                     return;
                 }
 
-                // Pomiń 7 bajtów
-                Debug.WriteLine($"[MDS] Position before skip: {pos}, skipping 7 bytes");
+                // H2: Filler 7 bajtów (ASCII spacje) - według dokumentacji Stock Watch 1000-1001
+                Debug.WriteLine($"[MDS] Position before filler: {pos}, skipping 7-byte filler");
                 pos += 7;
-                Debug.WriteLine($"[MDS] Position after skip: {pos}");
+                Debug.WriteLine($"[MDS] Position after filler: {pos}");
 
-                // NOWE: Zbierz WSZYSTKIE pola do listy
+                // Teraz dekodujemy wszystkie pola GL-encoded
+                // Zgodnie z dokumentacją Stock Watch, pola są numerowane od 0 do ~290
+                // Niektóre pozycje mogą być puste (field length = 0)
                 var allFields = new List<string>();
-                while (pos < length && response[pos] != Etx)
+                while (pos < length - FooterLength) // FooterLength = 3 (2 spacje + ETX)
                 {
+                    // Sprawdź czy nie dotarliśmy do footera (2 spacje + ETX)
+                    if (pos + FooterLength <= length && response[pos + 2] == Etx)
+                    {
+                        Debug.WriteLine($"[MDS] Reached footer at position {pos}");
+                        break;
+                    }
+                    
                     string fieldValue = DecodeField(response, ref pos);
                     allFields.Add(fieldValue);
                     
-                    // Zabezpieczenie
-                    if (allFields.Count > 200)
+                    // Zabezpieczenie przed nieskończoną pętlą
+                    if (allFields.Count > 300)
                     {
-                        Debug.WriteLine("[MDS] Too many fields, breaking");
+                        Debug.WriteLine("[MDS] Warning: Too many fields (>300), breaking");
                         break;
                     }
                 }
 
                 Debug.WriteLine($"[MDS] Total fields decoded: {allFields.Count}");
                 
-                // Wypisz wszystkie niepuste pola
+                // Wypisz wszystkie niepuste pola z ich pozycjami dla debugowania
+                Debug.WriteLine($"[MDS] === NON-EMPTY FIELDS ===");
                 for (int i = 0; i < allFields.Count; i++)
                 {
                     if (!string.IsNullOrEmpty(allFields[i]))
@@ -442,43 +390,138 @@ namespace FISApiClient.Models
                     }
                 }
 
-                // Teraz parsuj znane pola
-                if (allFields.Count > 0) details.BidQuantity = ParseLong(allFields[0]);
-                if (allFields.Count > 1) details.BidPrice = ParseDecimal(allFields[1]);
-                if (allFields.Count > 2) details.AskPrice = ParseDecimal(allFields[2]);
-                if (allFields.Count > 3) details.AskQuantity = ParseLong(allFields[3]);
-                if (allFields.Count > 4) details.LastPrice = ParseDecimal(allFields[4]);
-                if (allFields.Count > 5) details.LastQuantity = ParseLong(allFields[5]);
+                // ===================================================================
+                // Mapowanie pól według dokumentacji GL_API_SLCv5 dla Stock Watch:
+                // ===================================================================
+                
+                // Position 0: Bid quantity (NUM)
+                if (allFields.Count > 0) 
+                {
+                    details.BidQuantity = ParseLong(allFields[0]);
+                }
+                
+                // Position 1: Bid price (CHAR - ale zawiera liczbę)
+                if (allFields.Count > 1) 
+                {
+                    details.BidPrice = ParseDecimal(allFields[1]);
+                }
+                
+                // Position 2: Ask price (CHAR - ale zawiera liczbę)
+                if (allFields.Count > 2) 
+                {
+                    details.AskPrice = ParseDecimal(allFields[2]);
+                }
+                
+                // Position 3: Ask quantity (NUM)
+                if (allFields.Count > 3) 
+                {
+                    details.AskQuantity = ParseLong(allFields[3]);
+                }
+                
+                // Position 4: Last traded price (NUM)
+                if (allFields.Count > 4) 
+                {
+                    details.LastPrice = ParseDecimal(allFields[4]);
+                }
+                
+                // Position 5: Last traded quantity (NUM)
+                if (allFields.Count > 5) 
+                {
+                    details.LastQuantity = ParseLong(allFields[5]);
+                }
+                
+                // Position 6: Last trade time (CHAR)
                 if (allFields.Count > 6)
                 {
                     details.LastTradeTime = FormatTime(allFields[6]);
                     Debug.WriteLine($"[MDS] LastTradeTime: raw='{allFields[6]}' formatted='{details.LastTradeTime}'");
                 }
-                // Field 7 - skip
-                if (allFields.Count > 8) details.PercentageVariation = ParseDecimal(allFields[8]);
-                if (allFields.Count > 9) details.Volume = ParseLong(allFields[9]);
-                if (allFields.Count > 10) details.OpenPrice = ParseDecimal(allFields[10]);
-                if (allFields.Count > 11) details.HighPrice = ParseDecimal(allFields[11]);
-                if (allFields.Count > 12) details.LowPrice = ParseDecimal(allFields[12]);
-                if (allFields.Count > 13) details.SuspensionIndicator = allFields[13];
-                if (allFields.Count > 14) details.VariationSign = allFields[14];
-                // Field 15 - skip
-                if (allFields.Count > 16) details.ClosePrice = ParseDecimal(allFields[16]);
                 
+                // Position 7: (pusta w dokumentacji - reserved/not used)
+                
+                // Position 8: Percentage variation (CHAR)
+                if (allFields.Count > 8) 
+                {
+                    details.PercentageVariation = ParseDecimal(allFields[8]);
+                }
+                
+                // Position 9: Total quantity exchanged (NUM) - Volume
+                if (allFields.Count > 9) 
+                {
+                    details.Volume = ParseLong(allFields[9]);
+                }
+                
+                // Position 10: Opening price (NUM)
+                if (allFields.Count > 10) 
+                {
+                    details.OpenPrice = ParseDecimal(allFields[10]);
+                }
+                
+                // Position 11: High (NUM)
+                if (allFields.Count > 11) 
+                {
+                    details.HighPrice = ParseDecimal(allFields[11]);
+                }
+                
+                // Position 12: Low (NUM)
+                if (allFields.Count > 12) 
+                {
+                    details.LowPrice = ParseDecimal(allFields[12]);
+                }
+                
+                // Position 13: Suspension indicator (CHAR)
+                if (allFields.Count > 13) 
+                {
+                    details.SuspensionIndicator = allFields[13];
+                }
+                
+                // Position 14: Variation sign (CHAR)
+                if (allFields.Count > 14) 
+                {
+                    details.VariationSign = allFields[14];
+                }
+                
+                // Position 15: (pusta w dokumentacji - reserved/not used)
+                
+                // Position 16: Closing price (NUM)
+                if (allFields.Count > 16) 
+                {
+                    details.ClosePrice = ParseDecimal(allFields[16]);
+                }
+                
+                // Position 17: Minimum lot (NUM)
+                // Position 18: Proportional average price (NUM)
+                // ... inne pola, które można dodać w przyszłości
+                
+                // Position 42: Local code (CHAR) - kod lokalny instrumentu (np. "PEKAO")
                 if (allFields.Count > 42)
                 {
                     details.LocalCode = allFields[42];
                     Debug.WriteLine($"[MDS] LocalCode (position 42): '{details.LocalCode}'");
                 }
                 
-                // Szukaj ISIN i TradingPhase w dalszych polach
-                if (allFields.Count > 88) details.ISIN = allFields[88];
-                if (allFields.Count > 140) details.TradingPhase = allFields[140];
+                // Position 88: ISIN code (CHAR)
+                if (allFields.Count > 88)
+                {
+                    details.ISIN = allFields[88];
+                    Debug.WriteLine($"[MDS] ISIN (position 88): '{details.ISIN}'");
+                }
+                
+                // Position 140: Trading phase (CHAR) - faza notowań
+                if (allFields.Count > 140)
+                {
+                    details.TradingPhase = allFields[140];
+                    Debug.WriteLine($"[MDS] TradingPhase (position 140): '{details.TradingPhase}'");
+                }
 
-                Debug.WriteLine($"[MDS] Parsed values:");
-                Debug.WriteLine($"[MDS]   BidPrice={details.BidPrice}, AskPrice={details.AskPrice}, LastPrice={details.LastPrice}");
-                Debug.WriteLine($"[MDS]   OpenPrice={details.OpenPrice}, HighPrice={details.HighPrice}, LowPrice={details.LowPrice}, ClosePrice={details.ClosePrice}");
-                Debug.WriteLine($"[MDS]   Volume={details.Volume}, PercentageVariation={details.PercentageVariation}");
+                // Podsumowanie sparsowanych wartości
+                Debug.WriteLine($"[MDS] === PARSED VALUES ===");
+                Debug.WriteLine($"[MDS] Prices: Bid={details.BidPrice:F2}, Ask={details.AskPrice:F2}, Last={details.LastPrice:F2}");
+                Debug.WriteLine($"[MDS] Quantities: BidQty={details.BidQuantity}, AskQty={details.AskQuantity}, LastQty={details.LastQuantity}");
+                Debug.WriteLine($"[MDS] OHLC: Open={details.OpenPrice:F2}, High={details.HighPrice:F2}, Low={details.LowPrice:F2}, Close={details.ClosePrice:F2}");
+                Debug.WriteLine($"[MDS] Volume={details.Volume}, PercentageVar={details.PercentageVariation:F2}%");
+                Debug.WriteLine($"[MDS] LocalCode='{details.LocalCode}', ISIN='{details.ISIN}', TradingPhase='{details.TradingPhase}'");
+                Debug.WriteLine($"[MDS] SuspensionIndicator='{details.SuspensionIndicator}', VariationSign='{details.VariationSign}'");
                 Debug.WriteLine($"[MDS] === PARSING COMPLETE ===");
 
                 InstrumentDetailsReceived?.Invoke(details);
@@ -597,7 +640,16 @@ namespace FISApiClient.Models
                 if (position >= data.Length) return string.Empty;
                 var fieldLength = data[position] - 32;
         
-                if (fieldLength <= 0 || position + 1 + fieldLength > data.Length) return string.Empty;
+                if (fieldLength <= 0 || position + 1 + fieldLength > data.Length) 
+                {
+                    // Pole puste lub błędne - przeskocz tylko bajt długości
+                    if (fieldLength == 0)
+                    {
+                        position++; // Przeskocz bajt długości dla pustego pola
+                    }
+                    return string.Empty;
+                }
+                
                 var value = Encoding.ASCII.GetString(data, position + 1, fieldLength);
                 position += 1 + fieldLength;
                 return value;
@@ -621,7 +673,4 @@ namespace FISApiClient.Models
 
         #endregion
     }
-    
-    
 }
-

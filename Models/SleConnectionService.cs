@@ -565,7 +565,7 @@ namespace FISApiClient.Models
                 Debug.WriteLine($"[SLE] Field #19: Allocation Code = {allocCode}");
             }
             
-            // Field 81: Memo (optional)
+            // Field 81: Memo (optional)7841 dla akcji i 7849 dla kontraktow
             if (!string.IsNullOrEmpty(memo))
             {
                 string memoStr = memo.Substring(0, Math.Min(18, memo.Length));
