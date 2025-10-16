@@ -118,10 +118,21 @@
                               FontSize="12" 
                               Foreground="#666666"
                               Margin="0,0,0,5"/>
-                    <TextBlock Text="💡 Kliknij dwukrotnie na instrument aby zobaczyć szczegóły" 
-                              FontSize="11" 
-                              Foreground="#FF9800"
-                              FontStyle="Italic"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="💡 Kliknij dwukrotnie na instrument aby zobaczyć szczegóły" 
+                                  FontSize="11" 
+                                  Foreground="#FF9800"
+                                  FontStyle="Italic"
+                                  Margin="0,0,10,0"/>
+                        <TextBlock Text="•" 
+                                  Foreground="#CCCCCC" 
+                                  Margin="0,0,10,0"
+                                  VerticalAlignment="Center"/>
+                        <TextBlock Text="📊 Użyj Market Watch do real-time monitoringu" 
+                                  FontSize="11" 
+                                  Foreground="#4CAF50"
+                                  FontStyle="Italic"/>
+                    </StackPanel>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -195,11 +206,70 @@
                 </StackPanel>
 
                 <!-- Export Button -->
-                <Button Grid.Column="2"
-                       Content="📥 Eksportuj CSV"
-                       Command="{Binding ExportToCsvCommand}"
-                       Style="{StaticResource SecondaryButton}"
-                       Margin="0"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="📊 Market Watch"
+                           Command="{Binding OpenMarketWatchCommand}"
+                           Style="{StaticResource ActionButton}"
+                           Background="#4CAF50"
+                           Margin="0,5,5,5"
+                           ToolTip="Otwórz panel Market Watch">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}"
+                                       CornerRadius="4">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Margin="{TemplateBinding Padding}"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#388E3C"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter Property="Background" Value="#2E7D32"/>
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Background" Value="#CCCCCC"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    
+                    <Button Content="➕ Dodaj do Watch"
+                           Command="{Binding AddToMarketWatchCommand}"
+                           Style="{StaticResource ActionButton}"
+                           Background="#FF9800"
+                           Margin="0,5,10,5"
+                           ToolTip="Dodaj wybrany instrument do Market Watch">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}"
+                                       CornerRadius="4">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Margin="{TemplateBinding Padding}"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#F57C00"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter Property="Background" Value="#EF6C00"/>
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Background" Value="#CCCCCC"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    
+                    <Button Content="📥 Eksportuj CSV"
+                           Command="{Binding ExportToCsvCommand}"
+                           Style="{StaticResource SecondaryButton}"
+                           Margin="0"/>
+                </StackPanel>
             </Grid>
         </Border>
 

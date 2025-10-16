@@ -11,6 +11,7 @@ namespace FISApiClient.ViewModels
     public class InstrumentListViewModel : ViewModelBase
     {
         private readonly MdsConnectionService _mdsService;
+        private Views.MarketWatchWindow? _marketWatchWindow;
 
         #region Properties
 
@@ -89,6 +90,8 @@ namespace FISApiClient.ViewModels
         public RelayCommand LoadInstrumentsCommand { get; }
         public RelayCommand ClearSearchCommand { get; }
         public RelayCommand ExportToCsvCommand { get; }
+        public RelayCommand OpenMarketWatchCommand { get; }
+        public RelayCommand AddToMarketWatchCommand { get; }
 
         #endregion
 
@@ -109,6 +112,16 @@ namespace FISApiClient.ViewModels
             ExportToCsvCommand = new RelayCommand(
                 _ => ExportToCsv(),
                 _ => Instruments.Any()
+            );
+
+            OpenMarketWatchCommand = new RelayCommand(
+                _ => OpenMarketWatch(),
+                _ => _mdsService.IsConnected
+            );
+
+            AddToMarketWatchCommand = new RelayCommand(
+                async _ => await AddSelectedToMarketWatchAsync(),
+                _ => SelectedInstrument != null && _mdsService.IsConnected
             );
 
             // Podpięcie eventu do otrzymywania instrumentów
@@ -250,6 +263,49 @@ namespace FISApiClient.ViewModels
                     MessageBoxButton.OK,
                     MessageBoxImage.Error
                 );
+            }
+        }
+
+        /// <summary>
+        /// Otwiera okno Market Watch lub przynosi na wierzch jeśli już otwarte
+        /// </summary>
+        private void OpenMarketWatch()
+        {
+            if (_marketWatchWindow == null || !_marketWatchWindow.IsLoaded)
+            {
+                var viewModel = new MarketWatchViewModel(_mdsService);
+                _marketWatchWindow = new Views.MarketWatchWindow(viewModel);
+                _marketWatchWindow.Closed += (s, e) => _marketWatchWindow = null;
+                _marketWatchWindow.Show();
+            }
+            else
+            {
+                // Okno już istnieje - przywróć je na wierzch
+                if (_marketWatchWindow.WindowState == WindowState.Minimized)
+                {
+                    _marketWatchWindow.WindowState = WindowState.Normal;
+                }
+                _marketWatchWindow.Activate();
+            }
+        }
+
+        /// <summary>
+        /// Dodaje wybrany instrument do Market Watch
+        /// </summary>
+        private async System.Threading.Tasks.Task AddSelectedToMarketWatchAsync()
+        {
+            if (SelectedInstrument == null) return;
+
+            // Otwórz Market Watch jeśli nie jest otwarte
+            if (_marketWatchWindow == null || !_marketWatchWindow.IsLoaded)
+            {
+                OpenMarketWatch();
+            }
+
+            // Dodaj instrument
+            if (_marketWatchWindow?.DataContext is MarketWatchViewModel viewModel)
+            {
+                await viewModel.AddInstrumentAsync(SelectedInstrument);
             }
         }
     }

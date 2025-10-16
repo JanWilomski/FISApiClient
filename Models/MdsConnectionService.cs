@@ -27,6 +27,13 @@ namespace FISApiClient.Models
         public event Action<InstrumentDetails>? InstrumentDetailsReceived;
         
         private readonly List<byte> _receiveBuffer = new List<byte>();
+        
+        // Śledzenie aktywnych subskrypcji real-time
+        private readonly HashSet<string> _activeSubscriptions = new HashSet<string>();
+        private readonly object _subscriptionLock = new object();
+        
+        // Cache dla szczegółów instrumentów (dla mergowania real-time updates)
+        private readonly Dictionary<string, InstrumentDetails> _instrumentDetailsCache = new Dictionary<string, InstrumentDetails>();
 
         public async Task<bool> ConnectAndLoginAsync(string ipAddress, int port, string user, string password, string node, string subnode)
         {
@@ -215,11 +222,14 @@ namespace FISApiClient.Models
                         case 5108:
                             ProcessDictionaryResponse(response, length, stxPos);
                             break;
-                        case 1000: 
-                        case 1001:
-                        case 1003:
-                            Debug.WriteLine($"[MDS] Processing instrument details response (request {requestNumber})");
+                        case 1000: // Snapshot (stary)
+                        case 1001: // Refreshed snapshot (nowy - z real-time)
+                            Debug.WriteLine($"[MDS] Processing instrument details snapshot (request {requestNumber})");
                             ProcessInstrumentDetailsResponse(response, length, stxPos);
+                            break;
+                        case 1003: // Real-time update
+                            Debug.WriteLine($"[MDS] Processing real-time update (request 1003)");
+                            ProcessRealTimeUpdate(response, length, stxPos);
                             break;
                         default:
                             Debug.WriteLine($"[MDS] Unhandled request number: {requestNumber}");
@@ -236,10 +246,22 @@ namespace FISApiClient.Models
         public void Disconnect()
         {
             if (_tcpClient == null) return;
+            
+            // Zatrzymaj wszystkie aktywne subskrypcje przed rozłączeniem
+            lock (_subscriptionLock)
+            {
+                foreach (var glidAndSymbol in _activeSubscriptions.ToList())
+                {
+                    _ = StopInstrumentDetailsAsync(glidAndSymbol);
+                }
+                _activeSubscriptions.Clear();
+            }
+            
             _stream?.Close();
             _tcpClient?.Close();
             _tcpClient = null;
             _stream = null;
+            _instrumentDetailsCache.Clear();
         }
 
         public async Task RequestAllInstrumentsAsync()
@@ -266,6 +288,9 @@ namespace FISApiClient.Models
             }
         }
 
+        /// <summary>
+        /// Wysyła request 1001 (Refreshed) dla instrumentu - zwraca snapshot i rozpoczyna real-time updates (1003)
+        /// </summary>
         public async Task RequestInstrumentDetails(string glidAndStockcode)
         {
             if (!IsConnected || _stream == null)
@@ -274,18 +299,68 @@ namespace FISApiClient.Models
                 return;
             }
     
-            Debug.WriteLine($"[MDS] === SENDING REQUEST ===");
-            Debug.WriteLine($"[MDS] Requesting instrument details for: '{glidAndStockcode}'");
+            Debug.WriteLine($"[MDS] === SENDING REQUEST 1001 (REFRESHED) ===");
+            Debug.WriteLine($"[MDS] Requesting real-time updates for: '{glidAndStockcode}'");
     
-            byte[] request = BuildStockWatchRequest(glidAndStockcode);
+            // Użyj request 1001 zamiast 1000 dla real-time updates
+            byte[] request = BuildStockWatchRequest(glidAndStockcode, useRealTime: true);
     
             Debug.WriteLine($"[MDS] Request built, size: {request.Length} bytes");
     
             await _stream.WriteAsync(request, 0, request.Length);
             await _stream.FlushAsync();
+            
+            // Dodaj do aktywnych subskrypcji
+            lock (_subscriptionLock)
+            {
+                _activeSubscriptions.Add(glidAndStockcode);
+            }
     
-            Debug.WriteLine($"[MDS] Request sent and flushed");
+            Debug.WriteLine($"[MDS] Request 1001 sent - expecting snapshot + real-time updates");
+            Debug.WriteLine($"[MDS] Active subscriptions: {_activeSubscriptions.Count}");
             Debug.WriteLine($"[MDS] === REQUEST COMPLETE ===");
+        }
+        
+        /// <summary>
+        /// Wysyła request 1002 (Stop Refresh) aby zatrzymać real-time updates dla instrumentu
+        /// </summary>
+        public async Task StopInstrumentDetailsAsync(string glidAndStockcode)
+        {
+            if (!IsConnected || _stream == null)
+            {
+                Debug.WriteLine("[MDS] Cannot stop subscription - not connected");
+                return;
+            }
+            
+            lock (_subscriptionLock)
+            {
+                if (!_activeSubscriptions.Contains(glidAndStockcode))
+                {
+                    Debug.WriteLine($"[MDS] No active subscription for '{glidAndStockcode}'");
+                    return;
+                }
+            }
+    
+            Debug.WriteLine($"[MDS] === SENDING REQUEST 1002 (STOP REFRESH) ===");
+            Debug.WriteLine($"[MDS] Stopping real-time updates for: '{glidAndStockcode}'");
+    
+            byte[] request = BuildStopRefreshRequest(glidAndStockcode);
+    
+            Debug.WriteLine($"[MDS] Request built, size: {request.Length} bytes");
+    
+            await _stream.WriteAsync(request, 0, request.Length);
+            await _stream.FlushAsync();
+            
+            // Usuń z aktywnych subskrypcji
+            lock (_subscriptionLock)
+            {
+                _activeSubscriptions.Remove(glidAndStockcode);
+                _instrumentDetailsCache.Remove(glidAndStockcode);
+            }
+    
+            Debug.WriteLine($"[MDS] Request 1002 sent - real-time updates stopped");
+            Debug.WriteLine($"[MDS] Active subscriptions: {_activeSubscriptions.Count}");
+            Debug.WriteLine($"[MDS] === STOP COMPLETE ===");
         }
 
         private void ProcessDictionaryResponse(byte[] response, int length, int stxPos)
@@ -336,7 +411,7 @@ namespace FISApiClient.Models
 
                 // H0: Chaining (1 bajt ASCII)
                 byte chaining = response[pos++];
-                Debug.WriteLine($"[MDS] === PARSING INSTRUMENT DETAILS ===");
+                Debug.WriteLine($"[MDS] === PARSING INSTRUMENT DETAILS SNAPSHOT ===");
                 Debug.WriteLine($"[MDS] Chaining: {chaining}");
 
                 // H1: GLID + Stockcode (pole GL-encoded)
@@ -355,10 +430,8 @@ namespace FISApiClient.Models
                 Debug.WriteLine($"[MDS] Position after filler: {pos}");
 
                 // Teraz dekodujemy wszystkie pola GL-encoded
-                // Zgodnie z dokumentacją Stock Watch, pola są numerowane od 0 do ~290
-                // Niektóre pozycje mogą być puste (field length = 0)
                 var allFields = new List<string>();
-                while (pos < length - FooterLength) // FooterLength = 3 (2 spacje + ETX)
+                while (pos < length - FooterLength)
                 {
                     // Sprawdź czy nie dotarliśmy do footera (2 spacje + ETX)
                     if (pos + FooterLength <= length && response[pos + 2] == Etx)
@@ -380,148 +453,15 @@ namespace FISApiClient.Models
 
                 Debug.WriteLine($"[MDS] Total fields decoded: {allFields.Count}");
                 
-                // Wypisz wszystkie niepuste pola z ich pozycjami dla debugowania
-                Debug.WriteLine($"[MDS] === NON-EMPTY FIELDS ===");
-                for (int i = 0; i < allFields.Count; i++)
+                // Mapuj wszystkie pola do obiektu details
+                MapFieldsToDetails(details, allFields);
+
+                // Cache snapshot dla późniejszych real-time updates
+                lock (_subscriptionLock)
                 {
-                    if (!string.IsNullOrEmpty(allFields[i]))
-                    {
-                        Debug.WriteLine($"[MDS] Field[{i}] = '{allFields[i]}'");
-                    }
+                    _instrumentDetailsCache[details.GlidAndSymbol] = details;
                 }
 
-                // ===================================================================
-                // Mapowanie pól według dokumentacji GL_API_SLCv5 dla Stock Watch:
-                // ===================================================================
-                
-                // Position 0: Bid quantity (NUM)
-                if (allFields.Count > 0) 
-                {
-                    details.BidQuantity = ParseLong(allFields[0]);
-                }
-                
-                // Position 1: Bid price (CHAR - ale zawiera liczbę)
-                if (allFields.Count > 1) 
-                {
-                    details.BidPrice = ParseDecimal(allFields[1]);
-                }
-                
-                // Position 2: Ask price (CHAR - ale zawiera liczbę)
-                if (allFields.Count > 2) 
-                {
-                    details.AskPrice = ParseDecimal(allFields[2]);
-                }
-                
-                // Position 3: Ask quantity (NUM)
-                if (allFields.Count > 3) 
-                {
-                    details.AskQuantity = ParseLong(allFields[3]);
-                }
-                
-                // Position 4: Last traded price (NUM)
-                if (allFields.Count > 4) 
-                {
-                    details.LastPrice = ParseDecimal(allFields[4]);
-                }
-                
-                // Position 5: Last traded quantity (NUM)
-                if (allFields.Count > 5) 
-                {
-                    details.LastQuantity = ParseLong(allFields[5]);
-                }
-                
-                // Position 6: Last trade time (CHAR)
-                if (allFields.Count > 6)
-                {
-                    details.LastTradeTime = FormatTime(allFields[6]);
-                    Debug.WriteLine($"[MDS] LastTradeTime: raw='{allFields[6]}' formatted='{details.LastTradeTime}'");
-                }
-                
-                // Position 7: (pusta w dokumentacji - reserved/not used)
-                
-                // Position 8: Percentage variation (CHAR)
-                if (allFields.Count > 8) 
-                {
-                    details.PercentageVariation = ParseDecimal(allFields[8]);
-                }
-                
-                // Position 9: Total quantity exchanged (NUM) - Volume
-                if (allFields.Count > 9) 
-                {
-                    details.Volume = ParseLong(allFields[9]);
-                }
-                
-                // Position 10: Opening price (NUM)
-                if (allFields.Count > 10) 
-                {
-                    details.OpenPrice = ParseDecimal(allFields[10]);
-                }
-                
-                // Position 11: High (NUM)
-                if (allFields.Count > 11) 
-                {
-                    details.HighPrice = ParseDecimal(allFields[11]);
-                }
-                
-                // Position 12: Low (NUM)
-                if (allFields.Count > 12) 
-                {
-                    details.LowPrice = ParseDecimal(allFields[12]);
-                }
-                
-                // Position 13: Suspension indicator (CHAR)
-                if (allFields.Count > 13) 
-                {
-                    details.SuspensionIndicator = allFields[13];
-                }
-                
-                // Position 14: Variation sign (CHAR)
-                if (allFields.Count > 14) 
-                {
-                    details.VariationSign = allFields[14];
-                }
-                
-                // Position 15: (pusta w dokumentacji - reserved/not used)
-                
-                // Position 16: Closing price (NUM)
-                if (allFields.Count > 16) 
-                {
-                    details.ClosePrice = ParseDecimal(allFields[16]);
-                }
-                
-                // Position 17: Minimum lot (NUM)
-                // Position 18: Proportional average price (NUM)
-                // ... inne pola, które można dodać w przyszłości
-                
-                // Position 42: Local code (CHAR) - kod lokalny instrumentu (np. "PEKAO")
-                if (allFields.Count > 42)
-                {
-                    details.LocalCode = allFields[42];
-                    Debug.WriteLine($"[MDS] LocalCode (position 42): '{details.LocalCode}'");
-                }
-                
-                // Position 88: ISIN code (CHAR)
-                if (allFields.Count > 88)
-                {
-                    details.ISIN = allFields[88];
-                    Debug.WriteLine($"[MDS] ISIN (position 88): '{details.ISIN}'");
-                }
-                
-                // Position 140: Trading phase (CHAR) - faza notowań
-                if (allFields.Count > 140)
-                {
-                    details.TradingPhase = allFields[140];
-                    Debug.WriteLine($"[MDS] TradingPhase (position 140): '{details.TradingPhase}'");
-                }
-
-                // Podsumowanie sparsowanych wartości
-                Debug.WriteLine($"[MDS] === PARSED VALUES ===");
-                Debug.WriteLine($"[MDS] Prices: Bid={details.BidPrice:F2}, Ask={details.AskPrice:F2}, Last={details.LastPrice:F2}");
-                Debug.WriteLine($"[MDS] Quantities: BidQty={details.BidQuantity}, AskQty={details.AskQuantity}, LastQty={details.LastQuantity}");
-                Debug.WriteLine($"[MDS] OHLC: Open={details.OpenPrice:F2}, High={details.HighPrice:F2}, Low={details.LowPrice:F2}, Close={details.ClosePrice:F2}");
-                Debug.WriteLine($"[MDS] Volume={details.Volume}, PercentageVar={details.PercentageVariation:F2}%");
-                Debug.WriteLine($"[MDS] LocalCode='{details.LocalCode}', ISIN='{details.ISIN}', TradingPhase='{details.TradingPhase}'");
-                Debug.WriteLine($"[MDS] SuspensionIndicator='{details.SuspensionIndicator}', VariationSign='{details.VariationSign}'");
                 Debug.WriteLine($"[MDS] === PARSING COMPLETE ===");
 
                 InstrumentDetailsReceived?.Invoke(details);
@@ -531,6 +471,307 @@ namespace FISApiClient.Models
                 Debug.WriteLine($"[MDS] Failed to parse instrument details: {ex.Message}");
                 Debug.WriteLine($"[MDS] Stack trace: {ex.StackTrace}");
             }
+        }
+        
+        /// <summary>
+        /// Przetwarza real-time update (request 1003) - zawiera tylko zmienione pola
+        /// Format: H0: GLID+Stockcode, potem pary (field_number, field_value)
+        /// </summary>
+        private void ProcessRealTimeUpdate(byte[] response, int length, int stxPos)
+        {
+            try
+            {
+                int pos = stxPos + HeaderLength;
+                
+                Debug.WriteLine($"[MDS] === PARSING REAL-TIME UPDATE (1003) ===");
+                
+                // H0: GLID + Stockcode (GL-encoded)
+                string glidAndSymbol = DecodeField(response, ref pos);
+                Debug.WriteLine($"[MDS] GLID+Symbol: '{glidAndSymbol}'");
+                
+                if (string.IsNullOrEmpty(glidAndSymbol))
+                {
+                    Debug.WriteLine("[MDS] Empty GLID+Symbol in real-time update, skipping");
+                    return;
+                }
+                
+                // Pobierz cached details dla tego instrumentu
+                InstrumentDetails? details = null;
+                lock (_subscriptionLock)
+                {
+                    if (_instrumentDetailsCache.ContainsKey(glidAndSymbol))
+                    {
+                        // Sklonuj obiekt żeby móc go modyfikować
+                        details = CloneDetails(_instrumentDetailsCache[glidAndSymbol]);
+                    }
+                }
+                
+                if (details == null)
+                {
+                    Debug.WriteLine($"[MDS] No cached snapshot for '{glidAndSymbol}', cannot apply updates");
+                    Debug.WriteLine($"[MDS] Creating new InstrumentDetails object for this update");
+                    details = new InstrumentDetails { GlidAndSymbol = glidAndSymbol };
+                }
+                
+                // Parsuj pary (field_number, field_value) aż do końca wiadomości
+                int updateCount = 0;
+                while (pos < length - FooterLength)
+                {
+                    // Sprawdź czy nie dotarliśmy do footera
+                    if (pos + FooterLength <= length && response[pos + 2] == Etx)
+                    {
+                        Debug.WriteLine($"[MDS] Reached footer at position {pos}");
+                        break;
+                    }
+                    
+                    // H1: Refreshed field number (GL_C format: 1 byte = value + 32)
+                    if (pos >= length)
+                        break;
+                        
+                    byte fieldNumberByte = response[pos++];
+                    int fieldNumber = fieldNumberByte - 32; // GL_C decoding
+                    
+                    // H2: Refreshed field (GL-encoded)
+                    string fieldValue = DecodeField(response, ref pos);
+                    
+                    Debug.WriteLine($"[MDS] Update field #{fieldNumber} = '{fieldValue}'");
+                    
+                    // Aktualizuj odpowiednie pole w details
+                    UpdateDetailField(details, fieldNumber, fieldValue);
+                    updateCount++;
+                    
+                    // Zabezpieczenie
+                    if (updateCount > 300)
+                    {
+                        Debug.WriteLine("[MDS] Too many field updates (>300), breaking");
+                        break;
+                    }
+                }
+                
+                Debug.WriteLine($"[MDS] Applied {updateCount} field updates");
+                
+                // Aktualizuj cache
+                lock (_subscriptionLock)
+                {
+                    _instrumentDetailsCache[glidAndSymbol] = details;
+                }
+                
+                Debug.WriteLine($"[MDS] === REAL-TIME UPDATE COMPLETE ===");
+                
+                // Powiadom subskrybentów o aktualizacji
+                InstrumentDetailsReceived?.Invoke(details);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MDS] Failed to parse real-time update: {ex.Message}");
+                Debug.WriteLine($"[MDS] Stack trace: {ex.StackTrace}");
+            }
+        }
+        
+        /// <summary>
+        /// Aktualizuje pojedyncze pole w InstrumentDetails na podstawie numeru pola z real-time update
+        /// </summary>
+        private void UpdateDetailField(InstrumentDetails details, int fieldNumber, string fieldValue)
+        {
+            // Mapowanie numerów pól według dokumentacji Stock Watch
+            switch (fieldNumber)
+            {
+                case 0: // Bid quantity
+                    details.BidQuantity = ParseLong(fieldValue);
+                    break;
+                case 1: // Bid price
+                    details.BidPrice = ParseDecimal(fieldValue);
+                    break;
+                case 2: // Ask price
+                    details.AskPrice = ParseDecimal(fieldValue);
+                    break;
+                case 3: // Ask quantity
+                    details.AskQuantity = ParseLong(fieldValue);
+                    break;
+                case 4: // Last traded price
+                    details.LastPrice = ParseDecimal(fieldValue);
+                    break;
+                case 5: // Last traded quantity
+                    details.LastQuantity = ParseLong(fieldValue);
+                    break;
+                case 6: // Last trade time
+                    details.LastTradeTime = FormatTime(fieldValue);
+                    break;
+                case 8: // Percentage variation
+                    details.PercentageVariation = ParseDecimal(fieldValue);
+                    break;
+                case 9: // Total quantity exchanged (Volume)
+                    details.Volume = ParseLong(fieldValue);
+                    break;
+                case 10: // Opening price
+                    details.OpenPrice = ParseDecimal(fieldValue);
+                    break;
+                case 11: // High
+                    details.HighPrice = ParseDecimal(fieldValue);
+                    break;
+                case 12: // Low
+                    details.LowPrice = ParseDecimal(fieldValue);
+                    break;
+                case 13: // Suspension indicator
+                    details.SuspensionIndicator = fieldValue;
+                    break;
+                case 14: // Variation sign
+                    details.VariationSign = fieldValue;
+                    break;
+                case 16: // Closing price
+                    details.ClosePrice = ParseDecimal(fieldValue);
+                    break;
+                case 42: // Local code
+                    details.LocalCode = fieldValue;
+                    break;
+                case 88: // ISIN code
+                    details.ISIN = fieldValue;
+                    break;
+                case 140: // Trading phase
+                    details.TradingPhase = fieldValue;
+                    break;
+                // Dodaj więcej pól według potrzeb...
+                default:
+                    Debug.WriteLine($"[MDS] Unhandled field number {fieldNumber} in real-time update");
+                    break;
+            }
+        }
+        
+        /// <summary>
+        /// Mapuje wszystkie pola z listy do obiektu InstrumentDetails
+        /// </summary>
+        private void MapFieldsToDetails(InstrumentDetails details, List<string> allFields)
+        {
+            // Wypisz wszystkie niepuste pola
+            Debug.WriteLine($"[MDS] === NON-EMPTY FIELDS ===");
+            for (int i = 0; i < allFields.Count; i++)
+            {
+                if (!string.IsNullOrEmpty(allFields[i]))
+                {
+                    Debug.WriteLine($"[MDS] Field[{i}] = '{allFields[i]}'");
+                }
+            }
+            
+            // Position 0: Bid quantity
+            if (allFields.Count > 0) 
+                details.BidQuantity = ParseLong(allFields[0]);
+            
+            // Position 1: Bid price
+            if (allFields.Count > 1) 
+                details.BidPrice = ParseDecimal(allFields[1]);
+            
+            // Position 2: Ask price
+            if (allFields.Count > 2) 
+                details.AskPrice = ParseDecimal(allFields[2]);
+            
+            // Position 3: Ask quantity
+            if (allFields.Count > 3) 
+                details.AskQuantity = ParseLong(allFields[3]);
+            
+            // Position 4: Last traded price
+            if (allFields.Count > 4) 
+                details.LastPrice = ParseDecimal(allFields[4]);
+            
+            // Position 5: Last traded quantity
+            if (allFields.Count > 5) 
+                details.LastQuantity = ParseLong(allFields[5]);
+            
+            // Position 6: Last trade time
+            if (allFields.Count > 6)
+            {
+                details.LastTradeTime = FormatTime(allFields[6]);
+                Debug.WriteLine($"[MDS] LastTradeTime: raw='{allFields[6]}' formatted='{details.LastTradeTime}'");
+            }
+            
+            // Position 8: Percentage variation
+            if (allFields.Count > 8) 
+                details.PercentageVariation = ParseDecimal(allFields[8]);
+            
+            // Position 9: Total quantity exchanged (Volume)
+            if (allFields.Count > 9) 
+                details.Volume = ParseLong(allFields[9]);
+            
+            // Position 10: Opening price
+            if (allFields.Count > 10) 
+                details.OpenPrice = ParseDecimal(allFields[10]);
+            
+            // Position 11: High
+            if (allFields.Count > 11) 
+                details.HighPrice = ParseDecimal(allFields[11]);
+            
+            // Position 12: Low
+            if (allFields.Count > 12) 
+                details.LowPrice = ParseDecimal(allFields[12]);
+            
+            // Position 13: Suspension indicator
+            if (allFields.Count > 13) 
+                details.SuspensionIndicator = allFields[13];
+            
+            // Position 14: Variation sign
+            if (allFields.Count > 14) 
+                details.VariationSign = allFields[14];
+            
+            // Position 16: Closing price
+            if (allFields.Count > 16) 
+                details.ClosePrice = ParseDecimal(allFields[16]);
+            
+            // Position 42: Local code
+            if (allFields.Count > 42)
+            {
+                details.LocalCode = allFields[42];
+                Debug.WriteLine($"[MDS] LocalCode (position 42): '{details.LocalCode}'");
+            }
+            
+            // Position 88: ISIN code
+            if (allFields.Count > 88)
+            {
+                details.ISIN = allFields[88];
+                Debug.WriteLine($"[MDS] ISIN (position 88): '{details.ISIN}'");
+            }
+            
+            // Position 140: Trading phase
+            if (allFields.Count > 140)
+            {
+                details.TradingPhase = allFields[140];
+                Debug.WriteLine($"[MDS] TradingPhase (position 140): '{details.TradingPhase}'");
+            }
+
+            // Podsumowanie
+            Debug.WriteLine($"[MDS] === PARSED VALUES ===");
+            Debug.WriteLine($"[MDS] Prices: Bid={details.BidPrice:F2}, Ask={details.AskPrice:F2}, Last={details.LastPrice:F2}");
+            Debug.WriteLine($"[MDS] Quantities: BidQty={details.BidQuantity}, AskQty={details.AskQuantity}, LastQty={details.LastQuantity}");
+            Debug.WriteLine($"[MDS] OHLC: Open={details.OpenPrice:F2}, High={details.HighPrice:F2}, Low={details.LowPrice:F2}, Close={details.ClosePrice:F2}");
+            Debug.WriteLine($"[MDS] Volume={details.Volume}, PercentageVar={details.PercentageVariation:F2}%");
+            Debug.WriteLine($"[MDS] LocalCode='{details.LocalCode}', ISIN='{details.ISIN}', TradingPhase='{details.TradingPhase}'");
+        }
+        
+        /// <summary>
+        /// Klonuje obiekt InstrumentDetails (shallow copy wystarczy dla naszych potrzeb)
+        /// </summary>
+        private InstrumentDetails CloneDetails(InstrumentDetails source)
+        {
+            return new InstrumentDetails
+            {
+                GlidAndSymbol = source.GlidAndSymbol,
+                BidQuantity = source.BidQuantity,
+                BidPrice = source.BidPrice,
+                AskPrice = source.AskPrice,
+                AskQuantity = source.AskQuantity,
+                LastPrice = source.LastPrice,
+                LastQuantity = source.LastQuantity,
+                LastTradeTime = source.LastTradeTime,
+                PercentageVariation = source.PercentageVariation,
+                Volume = source.Volume,
+                OpenPrice = source.OpenPrice,
+                HighPrice = source.HighPrice,
+                LowPrice = source.LowPrice,
+                ClosePrice = source.ClosePrice,
+                SuspensionIndicator = source.SuspensionIndicator,
+                VariationSign = source.VariationSign,
+                LocalCode = source.LocalCode,
+                ISIN = source.ISIN,
+                TradingPhase = source.TradingPhase
+            };
         }
         
         private string FormatTime(string rawTime)
@@ -557,7 +798,7 @@ namespace FISApiClient.Models
                     return $"{hours}:{minutes}:{seconds}";
                 }
         
-                return rawTime; // Zwróć oryginalny jeśli nie pasuje
+                return rawTime;
             }
             catch
             {
@@ -566,12 +807,30 @@ namespace FISApiClient.Models
         }
 
         #region Message Builders
-        private byte[] BuildStockWatchRequest(string glidAndStockcode)
+        
+        /// <summary>
+        /// Buduje request Stock Watch - snapshot (1000) lub refreshed (1001)
+        /// </summary>
+        private byte[] BuildStockWatchRequest(string glidAndStockcode, bool useRealTime = false)
         {
             var dataBuilder = new List<byte>();
-            dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 7)));
-            dataBuilder.AddRange(EncodeField(glidAndStockcode));
-            return BuildMessage(dataBuilder.ToArray(), 1000);
+            dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 7))); // H0: Filler (7 spaces)
+            dataBuilder.AddRange(EncodeField(glidAndStockcode));                // H1: GLID + Stockcode
+            
+            // 1000 = snapshot tylko, 1001 = snapshot + real-time updates
+            int requestNumber = useRealTime ? 1001 : 1000;
+            
+            return BuildMessage(dataBuilder.ToArray(), requestNumber);
+        }
+        
+        /// <summary>
+        /// Buduje request 1002 (Stop Refresh) aby zatrzymać real-time updates
+        /// </summary>
+        private byte[] BuildStopRefreshRequest(string glidAndStockcode)
+        {
+            var dataBuilder = new List<byte>();
+            dataBuilder.AddRange(EncodeField(glidAndStockcode)); // H0: GLID + Stockcode
+            return BuildMessage(dataBuilder.ToArray(), 1002);
         }
 
         private byte[] BuildDictionaryRequest(string glid)

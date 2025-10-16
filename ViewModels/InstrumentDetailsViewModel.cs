@@ -11,6 +11,7 @@ namespace FISApiClient.ViewModels
         private readonly SleConnectionService _sleService;
         private readonly Instrument _instrument;
         private bool _isRequestInProgress = false;
+        private bool _isRealTimeActive = false;
 
         #region Properties
 
@@ -179,6 +180,13 @@ namespace FISApiClient.ViewModels
             get => _spreadPercentage;
             set => SetProperty(ref _spreadPercentage, value);
         }
+        
+        private int _updateCount = 0;
+        public int UpdateCount
+        {
+            get => _updateCount;
+            set => SetProperty(ref _updateCount, value);
+        }
 
         #endregion
 
@@ -303,7 +311,7 @@ namespace FISApiClient.ViewModels
             // Podpięcie eventu
             _mdsService.InstrumentDetailsReceived += OnInstrumentDetailsReceived;
 
-            // Automatyczne załadowanie danych
+            // Automatyczne załadowanie danych z real-time updates
             _ = LoadDetailsAsync();
         }
 
@@ -523,25 +531,26 @@ namespace FISApiClient.ViewModels
 
             _isRequestInProgress = true;
             IsLoading = true;
-            StatusMessage = "Pobieranie danych z serwera...";
+            StatusMessage = "Pobieranie danych z serwera (Real-Time)...";
+            UpdateCount = 0;
             
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] LoadDetailsAsync started");
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] LoadDetailsAsync started - requesting REAL-TIME updates");
 
             try
             {
                 string glidAndSymbol = _instrument.Glid + _instrument.Symbol;
-                System.Diagnostics.Debug.WriteLine($"[ViewModel] Requesting details for: {glidAndSymbol}");
+                System.Diagnostics.Debug.WriteLine($"[ViewModel] Requesting real-time details for: {glidAndSymbol}");
                 
+                // Używamy request 1001 (refreshed) zamiast 1000 (snapshot)
                 await _mdsService.RequestInstrumentDetails(glidAndSymbol);
+                _isRealTimeActive = true;
                 
-                System.Diagnostics.Debug.WriteLine($"[ViewModel] Request sent, waiting for response...");
+                System.Diagnostics.Debug.WriteLine($"[ViewModel] Request sent, waiting for snapshot + real-time updates...");
                 
-                // Czekaj maksymalnie 10 sekund na odpowiedź
+                // Czekaj maksymalnie 10 sekund na odpowiedź snapshot
                 int waitTime = 0;
                 int maxWait = 10000; // 10 sekund
                 int checkInterval = 100; // sprawdzaj co 100ms
-                
-                DateTime requestTime = DateTime.Now;
                 
                 while (waitTime < maxWait)
                 {
@@ -551,7 +560,9 @@ namespace FISApiClient.ViewModels
                     // Sprawdź czy IsLoading zostało wyłączone przez OnInstrumentDetailsReceived
                     if (!IsLoading)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[ViewModel] Data received after {waitTime}ms");
+                        System.Diagnostics.Debug.WriteLine($"[ViewModel] Snapshot received after {waitTime}ms");
+                        System.Diagnostics.Debug.WriteLine($"[ViewModel] Now receiving real-time updates (request 1003)...");
+                        StatusMessage = $"✓ Real-Time aktywny | Updates: {UpdateCount}";
                         _isRequestInProgress = false;
                         return; // Dane otrzymane
                     }
@@ -636,7 +647,18 @@ namespace FISApiClient.ViewModels
             {
                 Details = details;
                 IsLoading = false;
-                StatusMessage = $"Ostatnia aktualizacja: {DateTime.Now:HH:mm:ss}";
+                
+                // Inkrementuj licznik aktualizacji (dla snapshot będzie 1, dla real-time będzie rosnąć)
+                UpdateCount++;
+                
+                if (_isRealTimeActive)
+                {
+                    StatusMessage = $"✓ Real-Time aktywny | Updates: {UpdateCount} | {DateTime.Now:HH:mm:ss}";
+                }
+                else
+                {
+                    StatusMessage = $"Ostatnia aktualizacja: {DateTime.Now:HH:mm:ss}";
+                }
                 
                 // Zaktualizuj przyciski Quick Order
                 QuickBuyCommand.RaiseCanExecuteChanged();
@@ -717,9 +739,30 @@ namespace FISApiClient.ViewModels
             }
         }
 
-        public void Cleanup()
+        public async void Cleanup()
         {
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] Cleanup called for {_instrument.Symbol}");
+            
+            // Odpinamy event handler
             _mdsService.InstrumentDetailsReceived -= OnInstrumentDetailsReceived;
+            
+            // Zatrzymujemy real-time updates jeśli były aktywne
+            if (_isRealTimeActive)
+            {
+                string glidAndSymbol = _instrument.Glid + _instrument.Symbol;
+                System.Diagnostics.Debug.WriteLine($"[ViewModel] Stopping real-time updates for {glidAndSymbol}");
+                
+                try
+                {
+                    await _mdsService.StopInstrumentDetailsAsync(glidAndSymbol);
+                    _isRealTimeActive = false;
+                    System.Diagnostics.Debug.WriteLine($"[ViewModel] Real-time updates stopped successfully");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ViewModel] Error stopping real-time updates: {ex.Message}");
+                }
+            }
         }
         
         
