@@ -29,6 +29,8 @@ namespace FISApiClient.Models
         public event Action<OrderReply>? OrderReplyReceived;
         public event Action<string>? OrderRejected;
         public event Action<string>? OrderAccepted;
+        public event Action<List<Order>>? OrderBookReceived;
+        public event Action<Order>? OrderUpdated;
         
         private readonly List<byte> _receiveBuffer = new List<byte>();
         private bool _realtimeSubscribed = false;
@@ -410,10 +412,7 @@ namespace FISApiClient.Models
             }
         }
 
-        private void ProcessOrderBookReply(byte[] response, int length, int stxPos)
-        {
-            Debug.WriteLine("[SLE] Processing order book reply (2004)");
-        }
+
 
         private void ProcessRepliesBook(byte[] response, int length, int stxPos)
         {
@@ -862,6 +861,296 @@ namespace FISApiClient.Models
             {
                 Debug.WriteLine($"[SLE] Error verifying login response: {ex.Message}");
                 return false;
+            }
+        }
+
+        #endregion
+
+        #region orderBook
+
+        public async Task<bool> RequestOrderBookAsync()
+        {
+            if (!IsConnected || _stream == null)
+            {
+                System.Diagnostics.Debug.WriteLine("[SLE] Cannot request order book - not connected");
+                return false;
+            }
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("[SLE] === SENDING REQUEST 2004 (ORDER BOOK) ===");
+                
+                byte[] request = BuildOrderBookRequest();
+                
+                await _stream.WriteAsync(request, 0, request.Length);
+                await _stream.FlushAsync();
+                
+                System.Diagnostics.Debug.WriteLine("[SLE] Request 2004 sent - waiting for order book data");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SLE] Failed to request order book: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Buduje request 2004 - Order Book Consultation
+        /// </summary>
+        private byte[] BuildOrderBookRequest()
+        {
+            var dataBuilder = new List<byte>();
+            
+            // B: User number (5 bytes)
+            string userNum = _userNumber.PadLeft(5, '0');
+            dataBuilder.AddRange(System.Text.Encoding.ASCII.GetBytes(userNum));
+            System.Diagnostics.Debug.WriteLine($"[SLE] User number: {userNum}");
+            
+            // C: Request category (1 byte) - 'O' for Simple order
+            dataBuilder.Add((byte)'O');
+            System.Diagnostics.Debug.WriteLine($"[SLE] Request category: O");
+            
+            // D2: Question (1 byte) - '2' = N responses starting from the beginning
+            dataBuilder.Add((byte)'2');
+            System.Diagnostics.Debug.WriteLine($"[SLE] Question type: 2 (all from beginning)");
+            
+            // Filler (7 bytes)
+            dataBuilder.AddRange(System.Text.Encoding.ASCII.GetBytes(new string(' ', 7)));
+            
+            // G: Stockcode (GL encoded) - puste dla wszystkich instrumentów
+            dataBuilder.Add(32); // GL 0 (empty)
+            System.Diagnostics.Debug.WriteLine($"[SLE] Stockcode: empty (all instruments)");
+            
+            // E: Index (6 bytes) - "000000" dla początku
+            dataBuilder.AddRange(System.Text.Encoding.ASCII.GetBytes("000000"));
+            System.Diagnostics.Debug.WriteLine($"[SLE] Index: 000000");
+            
+            // F: Number of replies (5 bytes) - "00100" (100 zleceń)
+            dataBuilder.AddRange(System.Text.Encoding.ASCII.GetBytes("00100"));
+            System.Diagnostics.Debug.WriteLine($"[SLE] Number of replies: 100");
+            
+            // Filler (20 bytes)
+            dataBuilder.AddRange(System.Text.Encoding.ASCII.GetBytes(new string(' ', 20)));
+            
+            var dataPayload = dataBuilder.ToArray();
+            return BuildMessage(dataPayload, 2004);
+        }
+
+        /// <summary>
+        /// Parsuje odpowiedź 2004 - Order Book Reply
+        /// </summary>
+        private void ProcessOrderBookReply(byte[] response, int length, int stxPos)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("[SLE] === PROCESSING ORDER BOOK REPLY (2004) ===");
+                
+                int pos = stxPos + HeaderLength;
+                
+                // A: Chaining
+                char chaining = (char)response[pos++];
+                System.Diagnostics.Debug.WriteLine($"[SLE] Chaining: {chaining}");
+                
+                // B: User number (5 bytes)
+                string userNum = System.Text.Encoding.ASCII.GetString(response, pos, 5);
+                pos += 5;
+                
+                // C: Request category (1 byte)
+                char requestCategory = (char)response[pos++];
+                
+                // Filler (1 byte)
+                pos++;
+                
+                // E: Index (6 bytes)
+                string index = System.Text.Encoding.ASCII.GetString(response, pos, 6);
+                pos += 6;
+                System.Diagnostics.Debug.WriteLine($"[SLE] Index: {index}");
+                
+                // F: Number of replies (5 bytes)
+                string numRepliesStr = System.Text.Encoding.ASCII.GetString(response, pos, 5);
+                pos += 5;
+                int numReplies = int.Parse(numRepliesStr.Trim());
+                System.Diagnostics.Debug.WriteLine($"[SLE] Number of replies: {numReplies}");
+                
+                // G: Stockcode (GL encoded)
+                var (stockcode, bytesRead) = DecodeGLField(response, pos);
+                pos += bytesRead;
+                
+                // Filler (10 bytes)
+                pos += 10;
+                
+                // Parsuj Order Data
+                var order = ParseOrderData(response, pos, length - FooterLength, stockcode);
+                
+                if (order != null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SLE] Parsed order: {order.OrderId}, Status: {order.Status}");
+                    
+                    // Jeśli to pierwsze zlecenie (chaining != '1'), wyślij jako nową listę
+                    if (chaining == '0')
+                    {
+                        var orders = new List<Order> { order };
+                        OrderBookReceived?.Invoke(orders);
+                    }
+                    else
+                    {
+                        // Kolejne zlecenia - wyślij jako update
+                        var orders = new List<Order> { order };
+                        OrderBookReceived?.Invoke(orders);
+                    }
+                }
+                
+                System.Diagnostics.Debug.WriteLine("[SLE] === ORDER BOOK REPLY COMPLETE ===");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SLE] Failed to parse order book reply: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[SLE] Stack trace: {ex.StackTrace}");
+            }
+        }
+
+        /// <summary>
+        /// Parsuje dane zlecenia z bitmapy i tworzy obiekt Order
+        /// </summary>
+        private Order? ParseOrderData(byte[] response, int startPos, int endPos, string stockcode)
+        {
+            try
+            {
+                var order = new Order();
+                order.Instrument = stockcode;
+                
+                int pos = startPos;
+                var bitmapFields = new Dictionary<int, string>();
+                
+                // Dekoduj pola z bitmapy
+                while (pos < endPos)
+                {
+                    // Dekoduj Field ID
+                    var (fieldIdStr, idBytesRead) = DecodeGLField(response, pos);
+                    if (string.IsNullOrEmpty(fieldIdStr)) break;
+                    
+                    pos += idBytesRead;
+                    
+                    if (!int.TryParse(fieldIdStr, out int fieldId))
+                    {
+                        break;
+                    }
+                    
+                    // Dekoduj wartość pola
+                    var (fieldValue, valueBytesRead) = DecodeGLField(response, pos);
+                    pos += valueBytesRead;
+                    
+                    bitmapFields[fieldId] = fieldValue;
+                }
+                
+                // Mapuj pola do obiektu Order
+                MapBitmapToOrder(order, bitmapFields);
+                
+                return order;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SLE] Failed to parse order data: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Mapuje pola bitmapy do właściwości obiektu Order
+        /// </summary>
+        private void MapBitmapToOrder(Order order, Dictionary<int, string> fields)
+        {
+            // Field 0: Side (0=Buy, 1=Sell)
+            if (fields.ContainsKey(0))
+                order.Side = fields[0];
+            
+            // Field 1: Quantity
+            if (fields.ContainsKey(1) && long.TryParse(fields[1], out long qty))
+                order.Quantity = qty;
+            
+            // Field 2: Modality
+            if (fields.ContainsKey(2))
+                order.Modality = fields[2];
+            
+            // Field 3: Price
+            if (fields.ContainsKey(3) && decimal.TryParse(fields[3], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal price))
+                order.Price = price;
+            
+            // Field 4: Validity
+            if (fields.ContainsKey(4))
+                order.Validity = fields[4];
+            
+            // Field 10: Client Reference
+            if (fields.ContainsKey(10))
+                order.ClientReference = fields[10];
+            
+            // Field 30: Order Status
+            if (fields.ContainsKey(30))
+                order.Status = fields[30];
+            
+            // Field 42: SLE Reference
+            if (fields.ContainsKey(42))
+                order.SleReference = fields[42];
+            
+            // Field 62: Index (może być używany jako Order Time)
+            if (fields.ContainsKey(62))
+            {
+                // Można spróbować parsować jako timestamp
+                order.OrderTime = DateTime.Now; // Placeholder
+            }
+            
+            // Field 65: Reject Reason
+            if (fields.ContainsKey(65))
+                order.RejectReason = fields[65];
+            
+            // Field 101: Executed Quantity
+            if (fields.ContainsKey(101) && long.TryParse(fields[101], out long execQty))
+                order.ExecutedQuantity = execQty;
+            
+            // Field 102: Average Price
+            if (fields.ContainsKey(102) && decimal.TryParse(fields[102], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal avgPrice))
+                order.AveragePrice = avgPrice;
+            
+            // Field 261: Order ID
+            if (fields.ContainsKey(261))
+                order.OrderId = fields[261];
+            
+            order.LastUpdateTime = DateTime.Now;
+            
+            System.Diagnostics.Debug.WriteLine($"[SLE] Mapped order - ID: {order.OrderId}, Side: {order.Side}, Qty: {order.Quantity}, Status: {order.Status}");
+        }
+
+        /// <summary>
+        /// Obsługuje real-time update zlecenia (2019) i przekazuje do Order Book
+        /// </summary>
+        private void HandleOrderUpdate(Dictionary<int, string> bitmapFields, string stockcode, char replyType)
+        {
+            try
+            {
+                var order = new Order();
+                order.Instrument = stockcode;
+                
+                MapBitmapToOrder(order, bitmapFields);
+                
+                // Aktualizuj status na podstawie reply type
+                order.Status = replyType switch
+                {
+                    'A' => "A", // Accepted
+                    'C' => "C", // Rejected
+                    'G' => "C", // GL Reject
+                    'R' => "E", // Executed
+                    _ => order.Status
+                };
+                
+                // Wywołaj event dla real-time update
+                OrderUpdated?.Invoke(order);
+                
+                System.Diagnostics.Debug.WriteLine($"[SLE] Order update broadcasted - ID: {order.OrderId}, Status: {order.Status}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SLE] Failed to handle order update: {ex.Message}");
             }
         }
 

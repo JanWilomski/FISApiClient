@@ -46,5 +46,40 @@ namespace FISApiClient.Views
             detailsWindow.Owner = this; // Ustaw to okno jako właściciela
             detailsWindow.Show();
         }
+
+        /// <summary>
+        /// Otwiera okno Order Book (książka zleceń)
+        /// </summary>
+        private void BtnOrderBook_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sleService == null)
+            {
+                MessageBox.Show(
+                    "Serwis SLE nie jest dostępny.",
+                    "Błąd",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                );
+                return;
+            }
+
+            if (!_sleService.IsConnected)
+            {
+                MessageBox.Show(
+                    "Najpierw połącz się z serwerem SLE w głównym oknie.",
+                    "Brak połączenia",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning
+                );
+                return;
+            }
+
+            // Otwórz okno Order Book
+            var orderBookWindow = new OrderBookWindow(_sleService);
+            orderBookWindow.Owner = this;
+            orderBookWindow.Show();
+
+            System.Diagnostics.Debug.WriteLine("[InstrumentListWindow] Order Book window opened");
+        }
     }
 }

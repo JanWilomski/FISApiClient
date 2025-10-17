@@ -207,12 +207,41 @@
 
                 <!-- Export Button -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button x:Name="BtnOrderBook"
+                            Content="📋 Order Book"
+                            Click="BtnOrderBook_Click"
+                            Style="{StaticResource ActionButton}"
+                            Background="#FF9800"
+                            Margin="0,5,5,5"
+                            ToolTip="Otwórz książkę zleceń (Order Book)">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="4">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Margin="{TemplateBinding Padding}"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#F57C00"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter Property="Background" Value="#EF6C00"/>
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Background" Value="#CCCCCC"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                     <Button Content="📊 Market Watch"
-                           Command="{Binding OpenMarketWatchCommand}"
-                           Style="{StaticResource ActionButton}"
-                           Background="#4CAF50"
-                           Margin="0,5,5,5"
-                           ToolTip="Otwórz panel Market Watch">
+                            Command="{Binding OpenMarketWatchCommand}"
+                            Style="{StaticResource ActionButton}"
+                            Background="#4CAF50"
+                            Margin="0,5,5,5"
+                            ToolTip="Otwórz panel Market Watch">
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
                                 <Border Background="{TemplateBinding Background}"
