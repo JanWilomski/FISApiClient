@@ -358,31 +358,49 @@ namespace FISApiClient.Models
                 // Filler (10 bytes)
                 pos += 10;
                 
-                // BITMAP - dekodowanie pól
-                Debug.WriteLine("[SLE] Decoding bitmap fields...");
+                // BITMAP - dekodowanie pól SEKWENCYJNIE (bez numerów pól!)
+                Debug.WriteLine("[SLE] Decoding bitmap fields SEQUENTIALLY...");
                 var bitmapFields = new Dictionary<int, string>();
+                int fieldNumber = 0;
                 
                 while (pos < length - FooterLength)
                 {
-                    // Dekoduj Field ID
-                    var (fieldIdStr, idBytesRead) = DecodeGLField(response, pos);
-                    if (string.IsNullOrEmpty(fieldIdStr)) break;
-                    
-                    pos += idBytesRead;
-                    
-                    if (!int.TryParse(fieldIdStr, out int fieldId))
+                    // Sprawdź czy nie dotarliśmy do footera
+                    if (pos + FooterLength <= length && response[pos + 2] == Etx)
                     {
-                        Debug.WriteLine($"[SLE] Invalid field ID: {fieldIdStr}");
+                        Debug.WriteLine($"[SLE] Reached footer at position {pos}");
                         break;
                     }
                     
-                    // Dekoduj wartość pola
-                    var (fieldValue, valueBytesRead) = DecodeGLField(response, pos);
-                    pos += valueBytesRead;
+                    // Dekoduj wartość pola (GL encoded) - SEKWENCYJNIE!
+                    var (fieldValue, fieldBytesRead) = DecodeGLField(response, pos);
+                    pos += fieldBytesRead;
                     
-                    bitmapFields[fieldId] = fieldValue;
-                    Debug.WriteLine($"[SLE] Field #{fieldId} = {fieldValue}");
+                    // Jeśli pole nie jest puste, zapisz je
+                    if (!string.IsNullOrEmpty(fieldValue))
+                    {
+                        bitmapFields[fieldNumber] = fieldValue;
+                        
+                        // Loguj tylko kluczowe pola
+                        if (fieldNumber <= 10 || fieldNumber == 30 || fieldNumber == 42 || 
+                            fieldNumber == 62 || fieldNumber == 65 || fieldNumber == 261)
+                        {
+                            Debug.WriteLine($"[SLE] Field #{fieldNumber} = [{fieldValue}]");
+                        }
+                    }
+                    
+                    fieldNumber++;
+                    
+                    // Zabezpieczenie przed nieskończoną pętlą
+                    if (fieldNumber > 2000)
+                    {
+                        Debug.WriteLine($"[SLE] Warning: Too many fields (>{fieldNumber}), breaking");
+                        break;
+                    }
                 }
+                
+                Debug.WriteLine($"[SLE] Total fields decoded: {fieldNumber}");
+                Debug.WriteLine($"[SLE] Non-empty fields: {bitmapFields.Count}");
                 
                 // Wyświetl najważniejsze pola
                 if (bitmapFields.ContainsKey(30)) 
@@ -405,14 +423,19 @@ namespace FISApiClient.Models
                 {
                     OrderRejected?.Invoke($"Order rejected - Code: {bitmapFields.GetValueOrDefault(65, "Unknown")}");
                 }
+                
+                // Dodatkowo - obsłuż real-time update dla Order Book
+                if (stockcode != null && !string.IsNullOrEmpty(stockcode))
+                {
+                    HandleOrderUpdate(bitmapFields, stockcode, replyType);
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[SLE] Failed to parse order reply: {ex.Message}");
+                Debug.WriteLine($"[SLE] Stack trace: {ex.StackTrace}");
             }
         }
-
-
 
         private void ProcessRepliesBook(byte[] response, int length, int stxPos)
         {
@@ -1012,6 +1035,8 @@ namespace FISApiClient.Models
 
         /// <summary>
         /// Parsuje dane zlecenia z bitmapy i tworzy obiekt Order
+        /// KLUCZOWE: W odpowiedziach 2004/2008/2019 pola są wysyłane SEKWENCYJNIE bez numerów!
+        /// Format: [GL value#0][GL value#1][GL value#2]... gdzie puste pola to GL 0 (bajt 32)
         /// </summary>
         private Order? ParseOrderData(byte[] response, int startPos, int endPos, string stockcode)
         {
@@ -1022,27 +1047,51 @@ namespace FISApiClient.Models
                 
                 int pos = startPos;
                 var bitmapFields = new Dictionary<int, string>();
+                int fieldNumber = 0;
                 
-                // Dekoduj pola z bitmapy
+                System.Diagnostics.Debug.WriteLine($"[SLE] === PARSING ORDER DATA SEQUENTIALLY ===");
+                System.Diagnostics.Debug.WriteLine($"[SLE] Start pos: {startPos}, End pos: {endPos}");
+                
+                // Dekoduj pola SEKWENCYJNIE - każde kolejne pole GL-encoded to kolejny numer pola
                 while (pos < endPos)
                 {
-                    // Dekoduj Field ID
-                    var (fieldIdStr, idBytesRead) = DecodeGLField(response, pos);
-                    if (string.IsNullOrEmpty(fieldIdStr)) break;
-                    
-                    pos += idBytesRead;
-                    
-                    if (!int.TryParse(fieldIdStr, out int fieldId))
+                    // Sprawdź czy nie dotarliśmy do footera (2 spacje + ETX)
+                    if (pos + FooterLength <= endPos && response[pos + 2] == Etx)
                     {
+                        System.Diagnostics.Debug.WriteLine($"[SLE] Reached footer at position {pos}");
                         break;
                     }
                     
-                    // Dekoduj wartość pola
-                    var (fieldValue, valueBytesRead) = DecodeGLField(response, pos);
-                    pos += valueBytesRead;
+                    // Dekoduj wartość pola (GL encoded)
+                    var (fieldValue, bytesRead) = DecodeGLField(response, pos);
+                    pos += bytesRead;
                     
-                    bitmapFields[fieldId] = fieldValue;
+                    // Jeśli pole nie jest puste (GL 0 daje pusty string), zapisz je
+                    if (!string.IsNullOrEmpty(fieldValue))
+                    {
+                        bitmapFields[fieldNumber] = fieldValue;
+                        
+                        // Loguj tylko kluczowe pola dla czytelności
+                        if (fieldNumber <= 10 || fieldNumber == 30 || fieldNumber == 42 || 
+                            fieldNumber == 62 || fieldNumber == 65 || fieldNumber == 101 || 
+                            fieldNumber == 102 || fieldNumber == 261)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[SLE] Field #{fieldNumber} = [{fieldValue}]");
+                        }
+                    }
+                    
+                    fieldNumber++;
+                    
+                    // Zabezpieczenie przed nieskończoną pętlą
+                    if (fieldNumber > 2000)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SLE] Warning: Too many fields (>{fieldNumber}), breaking");
+                        break;
+                    }
                 }
+                
+                System.Diagnostics.Debug.WriteLine($"[SLE] Total fields decoded: {fieldNumber}");
+                System.Diagnostics.Debug.WriteLine($"[SLE] Non-empty fields: {bitmapFields.Count}");
                 
                 // Mapuj pola do obiektu Order
                 MapBitmapToOrder(order, bitmapFields);
@@ -1052,6 +1101,7 @@ namespace FISApiClient.Models
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[SLE] Failed to parse order data: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[SLE] Stack trace: {ex.StackTrace}");
                 return null;
             }
         }
