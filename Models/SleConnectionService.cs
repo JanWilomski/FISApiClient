@@ -17,6 +17,9 @@ namespace FISApiClient.Models
         private string _subnode = string.Empty;
         private string _userNumber = string.Empty;
         private string _assignedCallingId = "00000"; // Numer przydzielony przez serwer podczas logowania
+        
+        private static long _orderIdCounter = 0;
+        private static readonly object _orderIdLock = new object();
 
         private const byte Stx = 2;
         private const byte Etx = 3;
@@ -441,6 +444,27 @@ namespace FISApiClient.Models
         {
             Debug.WriteLine("[SLE] Processing replies book (2008)");
         }
+        
+        private string GenerateOrderId()
+        {
+            lock (_orderIdLock)
+            {
+                _orderIdCounter++;
+        
+                // Format: ORDyMMddHHmmss### gdzie ### to licznik 0-999
+                string timestamp = DateTime.Now.ToString("yyMMddHHmmss");
+                string counter = (_orderIdCounter % 1000).ToString("D3");
+                string orderId = $"ORD{timestamp}{counter}";
+        
+                // Maksymalna długość 16 znaków (zgodnie z FIS API)
+                if (orderId.Length > 16)
+                {
+                    orderId = orderId.Substring(0, 16);
+                }
+        
+                return orderId;
+            }
+        }
 
         #region Message Builders
 
@@ -636,9 +660,10 @@ namespace FISApiClient.Models
                 Debug.WriteLine($"[SLE] Field #192: Currency = {currency}");
             }
             
-            
-            
-            
+            string orderId = GenerateOrderId();
+            string orderIdTrimmed = orderId.Substring(0, Math.Min(16, orderId.Length));
+            fields[261] = orderIdTrimmed;
+            Debug.WriteLine($"[SLE] Field #261: Order ID = {orderIdTrimmed} *** CLIENT IDENTIFIER ***");
             
             // // Field 306: Second Client Code Type (optional)
             // if (!string.IsNullOrEmpty(secondClientCodeType) && secondClientCodeType != " ")

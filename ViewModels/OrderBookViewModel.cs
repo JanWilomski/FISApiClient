@@ -120,6 +120,7 @@ namespace FISApiClient.ViewModels
         /// </summary>
         private async System.Threading.Tasks.Task RefreshOrderBook()
         {
+            ClearOrders();
             IsLoading = true;
             StatusMessage = "Pobieranie zleceń...";
 
