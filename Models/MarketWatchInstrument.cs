@@ -1,5 +1,7 @@
 ﻿using FISApiClient.Helpers;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace FISApiClient.Models
 {
@@ -18,6 +20,59 @@ namespace FISApiClient.Models
 
         private decimal _bidPrice;
         private decimal _previousBidPrice;
+        
+        // Batch update support
+        private bool _isBatchUpdate;
+        private readonly List<string> _batchPropertyNames = new();
+
+        /// <summary>
+        /// Rozpoczyna batch update - zawiesza PropertyChanged notifications
+        /// </summary>
+        public void BeginBatchUpdate()
+        {
+            _isBatchUpdate = true;
+            _batchPropertyNames.Clear();
+        }
+
+        /// <summary>
+        /// Kończy batch update - wywołuje wszystkie odroczone PropertyChanged
+        /// </summary>
+        public void EndBatchUpdate()
+        {
+            _isBatchUpdate = false;
+    
+            // Wywołaj wszystkie odroczone notyfikacje
+            foreach (var propertyName in _batchPropertyNames.Distinct())
+            {
+                OnPropertyChanged(propertyName);
+            }
+    
+            _batchPropertyNames.Clear();
+        }
+
+        /// <summary>
+        /// SetProperty z obsługą batch update
+        /// </summary>
+        protected new bool SetProperty<T>(ref T field, T value, [System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+                return false;
+
+            field = value;
+    
+            if (_isBatchUpdate && !string.IsNullOrEmpty(propertyName))
+            {
+                // Odrocz notyfikację
+                _batchPropertyNames.Add(propertyName);
+            }
+            else
+            {
+                // Standardowa notyfikacja
+                OnPropertyChanged(propertyName);
+            }
+    
+            return true;
+        }
         public decimal BidPrice
         {
             get => _bidPrice;

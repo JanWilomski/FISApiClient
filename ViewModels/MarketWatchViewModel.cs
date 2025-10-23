@@ -1,7 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using FISApiClient.Helpers;
 using FISApiClient.Models;
 
@@ -10,10 +15,23 @@ namespace FISApiClient.ViewModels
     public class MarketWatchViewModel : ViewModelBase
     {
         private readonly MdsConnectionService _mdsService;
+        
+        // Batch processing
+        private readonly ConcurrentQueue<InstrumentDetails> _updateQueue = new();
+        private readonly Dictionary<string, MarketWatchInstrument> _instrumentDictionary = new();
+        private readonly DispatcherTimer _batchTimer;
+        private readonly SemaphoreSlim _batchLock = new(1, 1);
+        
+        // Performance metrics
+        private int _updatesReceived;
+        private int _updatesProcessed;
+        private DateTime _lastStatsUpdate = DateTime.Now;
+        private long _totalUpdateTime;
+        private int _batchCount;
 
         #region Properties
 
-        private ObservableCollection<MarketWatchInstrument> _watchedInstruments = new ObservableCollection<MarketWatchInstrument>();
+        private ObservableCollection<MarketWatchInstrument> _watchedInstruments = new();
         public ObservableCollection<MarketWatchInstrument> WatchedInstruments
         {
             get => _watchedInstruments;
@@ -63,6 +81,14 @@ namespace FISApiClient.ViewModels
 
         public string ConnectionStatusText => IsConnected ? "Połączono ✓" : "Rozłączono ✗";
         public string ConnectionStatusColor => IsConnected ? "#4CAF50" : "#F44336";
+        
+        // Performance stats
+        private string _performanceStats = "";
+        public string PerformanceStats
+        {
+            get => _performanceStats;
+            set => SetProperty(ref _performanceStats, value);
+        }
 
         #endregion
 
@@ -93,19 +119,28 @@ namespace FISApiClient.ViewModels
                 _ => IsConnected && WatchedInstruments.Any()
             );
 
-            // Subskrypcja na aktualizacje z MDS
+            // Subskrypcja na aktualizacje z MDS - teraz dodaje do kolejki
             _mdsService.InstrumentDetailsReceived += OnInstrumentDetailsReceived;
+
+            // Batch processing timer - przetwarzaj co 50ms
+            _batchTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(50) // 20 razy na sekundę
+            };
+            _batchTimer.Tick += async (s, e) => await ProcessBatchUpdatesAsync();
+            _batchTimer.Start();
 
             // Monitorowanie połączenia
             IsConnected = _mdsService.IsConnected;
-            System.Threading.Tasks.Task.Run(async () =>
+            Task.Run(async () =>
             {
                 while (true)
                 {
-                    await System.Threading.Tasks.Task.Delay(1000);
+                    await Task.Delay(1000);
                     Application.Current?.Dispatcher.Invoke(() =>
                     {
                         IsConnected = _mdsService.IsConnected;
+                        UpdatePerformanceStats();
                     });
                 }
             });
@@ -114,7 +149,7 @@ namespace FISApiClient.ViewModels
         /// <summary>
         /// Dodaje nowy instrument do MarketWatch i rozpoczyna subskrypcję real-time
         /// </summary>
-        public async System.Threading.Tasks.Task AddInstrumentAsync(Instrument instrument)
+        public async Task AddInstrumentAsync(Instrument instrument)
         {
             if (!_mdsService.IsConnected)
             {
@@ -130,18 +165,18 @@ namespace FISApiClient.ViewModels
             string glidAndSymbol = instrument.Glid + instrument.Symbol;
 
             // Sprawdź czy instrument już jest na liście
-            if (WatchedInstruments.Any(i => i.GlidAndSymbol == glidAndSymbol))
+            if (_instrumentDictionary.ContainsKey(glidAndSymbol))
             {
                 MessageBox.Show(
                     $"Instrument {instrument.Symbol} jest już na liście Market Watch!",
-                    "Instrument już dodany",
+                    "Duplikat",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information
                 );
                 return;
             }
 
-            // Utwórz nowy wpis
+            // Utwórz nowy instrument dla MarketWatch
             var watchInstrument = new MarketWatchInstrument
             {
                 GlidAndSymbol = glidAndSymbol,
@@ -151,70 +186,88 @@ namespace FISApiClient.ViewModels
                 ISIN = instrument.ISIN
             };
 
-            // Dodaj do listy
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                WatchedInstruments.Add(watchInstrument);
-                InstrumentCount = WatchedInstruments.Count;
-                StatusMessage = $"Dodano {instrument.Symbol} - oczekiwanie na dane...";
-            });
+            // Dodaj do kolekcji i dictionary
+            WatchedInstruments.Add(watchInstrument);
+            _instrumentDictionary[glidAndSymbol] = watchInstrument;
+            InstrumentCount = WatchedInstruments.Count;
 
-            // Subskrybuj real-time updates (request 1001)
+            // Rozpocznij subskrypcję real-time
             try
             {
                 await _mdsService.RequestInstrumentDetails(glidAndSymbol);
+                StatusMessage = $"Dodano {instrument.Symbol} do Market Watch";
                 
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    StatusMessage = $"Subskrypcja aktywna dla {instrument.Symbol}";
-                });
+                // Aktualizuj komendy
+                ClearAllCommand.RaiseCanExecuteChanged();
+                RefreshAllCommand.RaiseCanExecuteChanged();
             }
             catch (Exception ex)
             {
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    StatusMessage = $"Błąd subskrypcji: {ex.Message}";
-                });
+                System.Diagnostics.Debug.WriteLine($"Błąd dodawania instrumentu: {ex.Message}");
+                
+                // Cofnij dodanie w przypadku błędu
+                WatchedInstruments.Remove(watchInstrument);
+                _instrumentDictionary.Remove(glidAndSymbol);
+                InstrumentCount = WatchedInstruments.Count;
+                
+                MessageBox.Show(
+                    $"Błąd subskrypcji instrumentu: {ex.Message}",
+                    "Błąd",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                );
             }
         }
 
-        /// <summary>
-        /// Usuwa wybrany instrument z MarketWatch i zatrzymuje subskrypcję
-        /// </summary>
         private async void RemoveSelectedInstrument()
         {
             if (SelectedInstrument == null) return;
 
-            var instrumentToRemove = SelectedInstrument;
-            string symbol = instrumentToRemove.Symbol;
+            var instrument = SelectedInstrument;
+            
+            var result = MessageBox.Show(
+                $"Czy na pewno usunąć {instrument.Symbol} z Market Watch?",
+                "Potwierdzenie",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question
+            );
 
-            // Zatrzymaj subskrypcję (request 1002)
+            if (result != MessageBoxResult.Yes) return;
+
             try
             {
-                await _mdsService.StopInstrumentDetailsAsync(instrumentToRemove.GlidAndSymbol);
+                // Zatrzymaj subskrypcję
+                await _mdsService.StopInstrumentDetailsAsync(instrument.GlidAndSymbol);
+                
+                // Usuń z kolekcji i dictionary
+                WatchedInstruments.Remove(instrument);
+                _instrumentDictionary.Remove(instrument.GlidAndSymbol);
+                InstrumentCount = WatchedInstruments.Count;
+                
+                StatusMessage = $"Usunięto {instrument.Symbol} z Market Watch";
+                
+                // Aktualizuj komendy
+                ClearAllCommand.RaiseCanExecuteChanged();
+                RefreshAllCommand.RaiseCanExecuteChanged();
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Błąd zatrzymywania subskrypcji: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"Błąd usuwania instrumentu: {ex.Message}");
+                MessageBox.Show(
+                    $"Błąd zatrzymywania subskrypcji: {ex.Message}",
+                    "Błąd",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning
+                );
             }
-
-            // Usuń z listy
-            WatchedInstruments.Remove(instrumentToRemove);
-            InstrumentCount = WatchedInstruments.Count;
-            StatusMessage = $"Usunięto {symbol} z Market Watch";
-
-            // Aktualizuj komendy
-            ClearAllCommand.RaiseCanExecuteChanged();
-            RefreshAllCommand.RaiseCanExecuteChanged();
         }
 
-        /// <summary>
-        /// Czyści całą listę i zatrzymuje wszystkie subskrypcje
-        /// </summary>
         private async void ClearAll()
         {
+            if (!WatchedInstruments.Any()) return;
+
             var result = MessageBox.Show(
-                "Czy na pewno chcesz usunąć wszystkie instrumenty z Market Watch?",
+                $"Czy na pewno usunąć wszystkie {WatchedInstruments.Count} instrumenty z Market Watch?",
                 "Potwierdzenie",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question
@@ -235,8 +288,9 @@ namespace FISApiClient.ViewModels
                 }
             }
 
-            // Wyczyść listę
+            // Wyczyść kolekcje
             WatchedInstruments.Clear();
+            _instrumentDictionary.Clear();
             InstrumentCount = 0;
             StatusMessage = "Wyczyszczono Market Watch";
 
@@ -248,56 +302,142 @@ namespace FISApiClient.ViewModels
         /// <summary>
         /// Odświeża wszystkie instrumenty (ponowne żądanie snapshot)
         /// </summary>
-        private async System.Threading.Tasks.Task RefreshAllInstrumentsAsync()
+        private async Task RefreshAllInstrumentsAsync()
         {
             if (!_mdsService.IsConnected || !WatchedInstruments.Any()) return;
 
             StatusMessage = "Odświeżanie wszystkich instrumentów...";
 
+            // Batch request - wyślij wszystkie requesty bez opóźnień
+            var tasks = new List<Task>();
             foreach (var instrument in WatchedInstruments)
             {
-                try
-                {
-                    await _mdsService.RequestInstrumentDetails(instrument.GlidAndSymbol);
-                    await System.Threading.Tasks.Task.Delay(50); // Opóźnienie między requestami
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Błąd odświeżania {instrument.Symbol}: {ex.Message}");
-                }
+                tasks.Add(_mdsService.RequestInstrumentDetails(instrument.GlidAndSymbol));
             }
 
-            StatusMessage = "Odświeżanie zakończone";
+            try
+            {
+                await Task.WhenAll(tasks);
+                StatusMessage = "Odświeżanie zakończone";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Błąd odświeżania: {ex.Message}");
+                StatusMessage = "Błąd podczas odświeżania";
+            }
         }
 
         /// <summary>
-        /// Event handler dla otrzymywanych aktualizacji instrumentów
+        /// Event handler dla otrzymywanych aktualizacji - dodaje do kolejki (szybkie, non-blocking)
         /// </summary>
         private void OnInstrumentDetailsReceived(InstrumentDetails details)
         {
             if (string.IsNullOrEmpty(details.GlidAndSymbol)) return;
+            
+            // Tylko dodaj do kolejki - bez blokowania
+            _updateQueue.Enqueue(details);
+            Interlocked.Increment(ref _updatesReceived);
+        }
 
-            Application.Current.Dispatcher.Invoke(() =>
+        /// <summary>
+        /// Przetwarza batch aktualizacji co 50ms
+        /// </summary>
+        private async Task ProcessBatchUpdatesAsync()
+        {
+            if (_updateQueue.IsEmpty) return;
+
+            // Nie pozwól na równoległe przetwarzanie batchy
+            if (!await _batchLock.WaitAsync(0))
+                return;
+
+            try
             {
-                // Znajdź instrument na liście
-                var watchInstrument = WatchedInstruments.FirstOrDefault(i => i.GlidAndSymbol == details.GlidAndSymbol);
-
-                if (watchInstrument != null)
+                var startTime = System.Diagnostics.Stopwatch.StartNew();
+                var updates = new List<InstrumentDetails>();
+                
+                // Zbierz wszystkie dostępne aktualizacje (max 1000 na batch)
+                while (updates.Count < 1000 && _updateQueue.TryDequeue(out var detail))
                 {
-                    // Aktualizuj dane
-                    watchInstrument.UpdateFromDetails(details);
-
-                    // Aktualizuj status
-                    StatusMessage = $"Zaktualizowano {watchInstrument.Symbol} o {watchInstrument.LastUpdateTimeFormatted}";
+                    updates.Add(detail);
                 }
-            });
+
+                if (updates.Count == 0) return;
+
+                // Grupuj aktualizacje po instrumencie - bierzemy tylko ostatnią dla każdego
+                var latestUpdates = updates
+                    .GroupBy(u => u.GlidAndSymbol)
+                    .Select(g => g.Last())
+                    .ToList();
+
+                // Aktualizuj UI w jednym Dispatcher.Invoke
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    foreach (var details in latestUpdates)
+                    {
+                        // O(1) lookup zamiast O(n)
+                        if (_instrumentDictionary.TryGetValue(details.GlidAndSymbol, out var watchInstrument))
+                        {
+                            // Batch update - zawieś notyfikacje
+                            watchInstrument.BeginBatchUpdate();
+                            watchInstrument.UpdateFromDetails(details);
+                            watchInstrument.EndBatchUpdate();
+                            
+                            Interlocked.Increment(ref _updatesProcessed);
+                        }
+                    }
+
+                    // Aktualizuj status tylko co 20 batchy (nie przy każdym)
+                    if (_batchCount++ % 20 == 0 && latestUpdates.Count > 0)
+                    {
+                        var lastUpdate = latestUpdates[0];
+                        if (_instrumentDictionary.TryGetValue(lastUpdate.GlidAndSymbol, out var instr))
+                        {
+                            StatusMessage = $"Zaktualizowano {instr.Symbol} | Batch: {latestUpdates.Count} instrumentów";
+                        }
+                    }
+                }, DispatcherPriority.Background); // Niski priorytet - nie blokuj UI
+
+                startTime.Stop();
+                Interlocked.Add(ref _totalUpdateTime, startTime.ElapsedMilliseconds);
+            }
+            finally
+            {
+                _batchLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Aktualizuje statystyki wydajności
+        /// </summary>
+        private void UpdatePerformanceStats()
+        {
+            var elapsed = (DateTime.Now - _lastStatsUpdate).TotalSeconds;
+            if (elapsed >= 1.0)
+            {
+                var receivedRate = _updatesReceived / elapsed;
+                var processedRate = _updatesProcessed / elapsed;
+                var avgBatchTime = _batchCount > 0 ? _totalUpdateTime / (double)_batchCount : 0;
+                
+                PerformanceStats = $"📊 Otrzymano: {receivedRate:F0}/s | Przetw.: {processedRate:F0}/s | " +
+                                 $"Kolejka: {_updateQueue.Count} | Śr. batch: {avgBatchTime:F1}ms";
+                
+                // Reset liczników
+                _updatesReceived = 0;
+                _updatesProcessed = 0;
+                _totalUpdateTime = 0;
+                _batchCount = 0;
+                _lastStatsUpdate = DateTime.Now;
+            }
         }
 
         /// <summary>
         /// Cleanup przy zamykaniu okna
         /// </summary>
-        public async System.Threading.Tasks.Task CleanupAsync()
+        public async Task CleanupAsync()
         {
+            // Zatrzymaj timer
+            _batchTimer.Stop();
+            
             // Zatrzymaj wszystkie subskrypcje
             foreach (var instrument in WatchedInstruments.ToList())
             {
@@ -313,6 +453,9 @@ namespace FISApiClient.ViewModels
 
             // Odsubskrybuj event
             _mdsService.InstrumentDetailsReceived -= OnInstrumentDetailsReceived;
+            
+            // Cleanup
+            _batchLock.Dispose();
         }
     }
 }
