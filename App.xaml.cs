@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace Cross_FIS_API_1._2
+namespace FISApiClient
 {
     public partial class App : Application
     {
