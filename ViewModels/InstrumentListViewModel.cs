@@ -5,13 +5,20 @@ using System.Linq;
 using System.Windows;
 using FISApiClient.Helpers;
 using FISApiClient.Models;
+using FISApiClient.Services;
+using System.Diagnostics;
 
 namespace FISApiClient.ViewModels
 {
     public class InstrumentListViewModel : ViewModelBase
     {
         private readonly MdsConnectionService _mdsService;
+        private readonly InstrumentCacheService _cacheService;
         private Views.MarketWatchWindow? _marketWatchWindow;
+
+        // Flaga do śledzenia czy instrumenty są obecnie ładowane z serwera
+        private bool _isLoadingFromServer = false;
+        private List<Instrument> _receivedInstruments = new List<Instrument>();
 
         #region Properties
 
@@ -98,6 +105,7 @@ namespace FISApiClient.ViewModels
         public InstrumentListViewModel(MdsConnectionService mdsService)
         {
             _mdsService = mdsService;
+            _cacheService = new InstrumentCacheService();
 
             LoadInstrumentsCommand = new RelayCommand(
                 async _ => await LoadInstrumentsAsync(),
@@ -142,7 +150,7 @@ namespace FISApiClient.ViewModels
             }
 
             IsLoading = true;
-            StatusMessage = "Pobieranie instrumentów...";
+            StatusMessage = "Sprawdzanie cache...";
             
             try
             {
@@ -152,33 +160,100 @@ namespace FISApiClient.ViewModels
                 TotalCount = 0;
                 FilteredCount = 0;
 
+                // Sprawdź czy istnieje cache dla dzisiejszej daty
+                if (_cacheService.HasTodayCache())
+                {
+                    Debug.WriteLine("[InstrumentListVM] Cache for today found, loading from cache");
+                    StatusMessage = "Ładowanie z cache...";
+
+                    var cacheData = await _cacheService.LoadCacheAsync();
+
+                    if (cacheData.HasValue)
+                    {
+                        Debug.WriteLine($"[InstrumentListVM] Successfully loaded {cacheData.Value.instruments.Count} instruments from cache");
+                        
+                        // Załaduj instrumenty
+                        foreach (var instrument in cacheData.Value.instruments)
+                        {
+                            Instruments.Add(instrument);
+                        }
+
+                        // Załaduj szczegóły do cache w MdsConnectionService
+                        _mdsService.LoadInstrumentDetailsCache(cacheData.Value.details);
+
+                        TotalCount = Instruments.Count;
+                        FilterInstruments();
+
+                        StatusMessage = $"Załadowano {TotalCount} instrumentów z cache (dzisiejsza data)";
+                        IsLoading = false;
+                        return;
+                    }
+                    else
+                    {
+                        Debug.WriteLine("[InstrumentListVM] Failed to load from cache, will fetch from server");
+                        StatusMessage = "Błąd odczytu cache, pobieranie z serwera...";
+                    }
+                }
+                else
+                {
+                    Debug.WriteLine("[InstrumentListVM] No cache for today, fetching from server");
+                    StatusMessage = "Brak cache, pobieranie z serwera...";
+                }
+
+                // Brak cache lub błąd odczytu - pobierz z serwera
+                _isLoadingFromServer = true;
+                _receivedInstruments.Clear();
+                
+                StatusMessage = "Pobieranie instrumentów z serwera...";
+
                 // Wyślij żądania dla wszystkich rynków
                 await _mdsService.RequestAllInstrumentsAsync();
 
                 StatusMessage = "Oczekiwanie na odpowiedzi od serwera...";
+
+                // Ustaw timeout - jeśli po 30 sekundach nie otrzymamy wszystkich danych
+                _ = System.Threading.Tasks.Task.Run(async () =>
+                {
+                    await System.Threading.Tasks.Task.Delay(30000); // 30 sekund
+                    if (_isLoadingFromServer && IsLoading)
+                    {
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            FinishLoadingFromServer();
+                        });
+                    }
+                });
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Błąd: {ex.Message}";
                 MessageBox.Show(
-                    $"Wystąpił błąd podczas pobierania instrumentów:\n{ex.Message}",
+                    $"Wystąpił błąd podczas ładowania instrumentów:\n{ex.Message}",
                     "Błąd",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error
                 );
-            }
-            finally
-            {
-                // IsLoading pozostanie true dopóki nie otrzymamy wszystkich odpowiedzi
-                // Zostanie wyłączone w OnInstrumentsReceived po timeout
+                IsLoading = false;
+                _isLoadingFromServer = false;
             }
         }
 
         private void OnInstrumentsReceived(List<Instrument> newInstruments)
         {
+            if (!_isLoadingFromServer)
+            {
+                return; // Ignoruj jeśli nie ładujemy obecnie z serwera
+            }
+
             // Uruchom na wątku UI
             Application.Current.Dispatcher.Invoke(() =>
             {
+                Debug.WriteLine($"[InstrumentListVM] Received {newInstruments.Count} instruments from server");
+
+                // Dodaj do tymczasowej listy
+                _receivedInstruments.AddRange(newInstruments);
+
+                // Dodaj do wyświetlanej listy
                 foreach (var instrument in newInstruments)
                 {
                     Instruments.Add(instrument);
@@ -187,9 +262,54 @@ namespace FISApiClient.ViewModels
                 TotalCount = Instruments.Count;
                 FilterInstruments();
 
-                StatusMessage = $"Pobrano {TotalCount} instrumentów";
-                IsLoading = false;
+                StatusMessage = $"Pobrano {TotalCount} instrumentów (w trakcie...)";
+
+                // Sprawdź czy mamy już wszystkie instrumenty (prosty heurystyk - po 5 sekundach bez nowych danych)
+                _ = System.Threading.Tasks.Task.Run(async () =>
+                {
+                    var currentCount = TotalCount;
+                    await System.Threading.Tasks.Task.Delay(5000); // 5 sekund
+                    
+                    if (_isLoadingFromServer && currentCount == TotalCount)
+                    {
+                        // Liczba się nie zmieniła przez 5 sekund - prawdopodobnie skończyliśmy
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            FinishLoadingFromServer();
+                        });
+                    }
+                });
             });
+        }
+
+        private async void FinishLoadingFromServer()
+        {
+            if (!_isLoadingFromServer)
+                return;
+
+            _isLoadingFromServer = false;
+
+            Debug.WriteLine($"[InstrumentListVM] Finishing server load, total instruments: {_receivedInstruments.Count}");
+            StatusMessage = $"Zapisywanie do cache...";
+
+            try
+            {
+                // Zapisz do cache
+                var detailsCache = _mdsService.GetInstrumentDetailsCache();
+                await _cacheService.SaveCacheAsync(_receivedInstruments.ToList(), detailsCache);
+
+                Debug.WriteLine($"[InstrumentListVM] Cache saved successfully");
+                StatusMessage = $"Pobrano {TotalCount} instrumentów (zapisano w cache)";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[InstrumentListVM] Error saving cache: {ex.Message}");
+                StatusMessage = $"Pobrano {TotalCount} instrumentów (błąd zapisu cache)";
+            }
+            finally
+            {
+                IsLoading = false;
+            }
         }
 
         private void FilterInstruments()
@@ -229,26 +349,24 @@ namespace FISApiClient.ViewModels
                 var saveDialog = new Microsoft.Win32.SaveFileDialog
                 {
                     Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
-                    DefaultExt = ".csv",
-                    FileName = $"Instruments_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+                    DefaultExt = "csv",
+                    FileName = $"instruments_{DateTime.Now:yyyy-MM-dd}.csv"
                 };
 
                 if (saveDialog.ShowDialog() == true)
                 {
-                    using (var writer = new System.IO.StreamWriter(saveDialog.FileName, false, System.Text.Encoding.UTF8))
-                    {
-                        // Nagłówek
-                        writer.WriteLine("GLID,Symbol,Name,ISIN");
+                    var csv = new System.Text.StringBuilder();
+                    csv.AppendLine("GLID,Symbol,Name,LocalCode,ISIN");
 
-                        // Dane
-                        foreach (var instrument in FilteredInstruments)
-                        {
-                            writer.WriteLine($"\"{instrument.Glid}\",\"{instrument.Symbol}\",\"{instrument.Name}\",\"{instrument.ISIN}\"");
-                        }
+                    foreach (var instrument in Instruments)
+                    {
+                        csv.AppendLine($"\"{instrument.Glid}\",\"{instrument.Symbol}\",\"{instrument.Name}\",\"{instrument.LocalCode}\",\"{instrument.ISIN}\"");
                     }
 
+                    System.IO.File.WriteAllText(saveDialog.FileName, csv.ToString());
+
                     MessageBox.Show(
-                        $"Wyeksportowano {FilteredCount} instrumentów do pliku:\n{saveDialog.FileName}",
+                        $"Wyeksportowano {Instruments.Count} instrumentów do pliku CSV.",
                         "Eksport zakończony",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information
@@ -266,9 +384,6 @@ namespace FISApiClient.ViewModels
             }
         }
 
-        /// <summary>
-        /// Otwiera okno Market Watch lub przynosi na wierzch jeśli już otwarte
-        /// </summary>
         private void OpenMarketWatch()
         {
             if (_marketWatchWindow == null || !_marketWatchWindow.IsLoaded)
@@ -289,9 +404,6 @@ namespace FISApiClient.ViewModels
             }
         }
 
-        /// <summary>
-        /// Dodaje wybrany instrument do Market Watch
-        /// </summary>
         private async System.Threading.Tasks.Task AddSelectedToMarketWatchAsync()
         {
             if (SelectedInstrument == null) return;

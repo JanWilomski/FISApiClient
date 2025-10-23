@@ -362,6 +362,36 @@ namespace FISApiClient.Models
             Debug.WriteLine($"[MDS] Active subscriptions: {_activeSubscriptions.Count}");
             Debug.WriteLine($"[MDS] === STOP COMPLETE ===");
         }
+        
+        /// <summary>
+        /// Zwraca kopię słownika z cache szczegółów instrumentów
+        /// </summary>
+        /// <returns>Słownik z kluczem GlidAndSymbol i wartością InstrumentDetails</returns>
+        public Dictionary<string, InstrumentDetails> GetInstrumentDetailsCache()
+        {
+            lock (_subscriptionLock)
+            {
+                // Zwróć kopię słownika aby zapobiec modyfikacjom z zewnątrz
+                return new Dictionary<string, InstrumentDetails>(_instrumentDetailsCache);
+            }
+        }
+
+        /// <summary>
+        /// Ładuje szczegóły instrumentów z cache (używane przy odczycie z pliku)
+        /// </summary>
+        /// <param name="detailsCache">Słownik szczegółów do załadowania</param>
+        public void LoadInstrumentDetailsCache(Dictionary<string, InstrumentDetails> detailsCache)
+        {
+            lock (_subscriptionLock)
+            {
+                _instrumentDetailsCache.Clear();
+                foreach (var kvp in detailsCache)
+                {
+                    _instrumentDetailsCache[kvp.Key] = kvp.Value;
+                }
+                Debug.WriteLine($"[MDS] Loaded {_instrumentDetailsCache.Count} instrument details from cache");
+            }
+        }
 
         private void ProcessDictionaryResponse(byte[] response, int length, int stxPos)
         {
