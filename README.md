@@ -293,7 +293,7 @@ Ze względu na bezpieczeństwo, `PasswordBox.Password` nie jest DependencyProper
 
 ## Autor
 
-Cross FIS API Client v1.2
+Jan Wilomski
 
 ## Licencja
 
