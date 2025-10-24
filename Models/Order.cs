@@ -28,7 +28,7 @@ namespace FISApiClient.Models
 
         #endregion
 
-        #region Properties
+        #region Basic Properties
 
         private string _orderId = string.Empty;
         public string OrderId
@@ -68,6 +68,10 @@ namespace FISApiClient.Models
             };
         }
 
+        #endregion
+
+        #region Quantity Properties
+
         private long _quantity;
         public long Quantity
         {
@@ -88,7 +92,30 @@ namespace FISApiClient.Models
             }
         }
 
-        public long RemainingQuantity => Quantity - ExecutedQuantity;
+        private long _remainingQuantity;
+        public long RemainingQuantity
+        {
+            get => _remainingQuantity;
+            set => SetProperty(ref _remainingQuantity, value);
+        }
+
+        private long _displayedQuantity;
+        public long DisplayedQuantity
+        {
+            get => _displayedQuantity;
+            set => SetProperty(ref _displayedQuantity, value);
+        }
+
+        private long _minimumQuantity;
+        public long MinimumQuantity
+        {
+            get => _minimumQuantity;
+            set => SetProperty(ref _minimumQuantity, value);
+        }
+
+        #endregion
+
+        #region Price Properties
 
         private decimal _price;
         public decimal Price
@@ -96,6 +123,24 @@ namespace FISApiClient.Models
             get => _price;
             set => SetProperty(ref _price, value);
         }
+
+        private decimal _executionPrice;
+        public decimal ExecutionPrice
+        {
+            get => _executionPrice;
+            set => SetProperty(ref _executionPrice, value);
+        }
+
+        private decimal _averagePrice;
+        public decimal AveragePrice
+        {
+            get => _averagePrice;
+            set => SetProperty(ref _averagePrice, value);
+        }
+
+        #endregion
+
+        #region Order Type Properties
 
         private OrderModality _modality = OrderModality.Unknown;
         public OrderModality Modality
@@ -135,6 +180,10 @@ namespace FISApiClient.Models
             };
         }
 
+        #endregion
+
+        #region Status Properties
+
         private OrderStatus _status = OrderStatus.Unknown;
         public OrderStatus Status
         {
@@ -153,9 +202,18 @@ namespace FISApiClient.Models
                 "X" => OrderStatus.Cancelled,
                 "M" => OrderStatus.Modified,
                 "W" => OrderStatus.Working,
+                "O" => OrderStatus.Accepted, // "O" = Acknowledged
+                "R" => OrderStatus.Rejected,
+                "T" => OrderStatus.Executed, // "T X" = Totally executed
+                "L" => OrderStatus.PartiallyExecuted, // "L X" = Partially executed and eliminated
+                "N" => OrderStatus.Modified, // "N" = In modification
                 _ => OrderStatus.Unknown
             };
         }
+
+        #endregion
+
+        #region Time Properties
 
         private DateTime _orderTime;
         public DateTime OrderTime
@@ -171,12 +229,94 @@ namespace FISApiClient.Models
             set => SetProperty(ref _lastUpdateTime, value);
         }
 
+        private DateTime? _tradeTime;
+        public DateTime? TradeTime
+        {
+            get => _tradeTime;
+            set => SetProperty(ref _tradeTime, value);
+        }
+
+        private DateTime? _rejectTime;
+        public DateTime? RejectTime
+        {
+            get => _rejectTime;
+            set => SetProperty(ref _rejectTime, value);
+        }
+
+        #endregion
+
+        #region Exchange Properties
+
+        private string _exchangeNumber = string.Empty;
+        public string ExchangeNumber
+        {
+            get => _exchangeNumber;
+            set => SetProperty(ref _exchangeNumber, value);
+        }
+
+        private string _tradeNumber = string.Empty;
+        public string TradeNumber
+        {
+            get => _tradeNumber;
+            set => SetProperty(ref _tradeNumber, value);
+        }
+
+        private int _numberOfExecutions;
+        public int NumberOfExecutions
+        {
+            get => _numberOfExecutions;
+            set => SetProperty(ref _numberOfExecutions, value);
+        }
+
+        #endregion
+
+        #region Client Properties
+
         private string _clientReference = string.Empty;
         public string ClientReference
         {
             get => _clientReference;
             set => SetProperty(ref _clientReference, value);
         }
+
+        private string _internalReference = string.Empty;
+        public string InternalReference
+        {
+            get => _internalReference;
+            set => SetProperty(ref _internalReference, value);
+        }
+
+        private string _clientCodeType = string.Empty;
+        public string ClientCodeType
+        {
+            get => _clientCodeType;
+            set => SetProperty(ref _clientCodeType, value);
+        }
+
+        private string _allocationCode = string.Empty;
+        public string AllocationCode
+        {
+            get => _allocationCode;
+            set => SetProperty(ref _allocationCode, value);
+        }
+
+        private string _clearingAccount = string.Empty;
+        public string ClearingAccount
+        {
+            get => _clearingAccount;
+            set => SetProperty(ref _clearingAccount, value);
+        }
+
+        private string _memo = string.Empty;
+        public string Memo
+        {
+            get => _memo;
+            set => SetProperty(ref _memo, value);
+        }
+
+        #endregion
+
+        #region Reject Properties
 
         private string _rejectReason = string.Empty;
         public string RejectReason
@@ -185,16 +325,94 @@ namespace FISApiClient.Models
             set => SetProperty(ref _rejectReason, value);
         }
 
-        private decimal _averagePrice;
-        public decimal AveragePrice
+        private string _rejectType = string.Empty;
+        public string RejectType
         {
-            get => _averagePrice;
-            set => SetProperty(ref _averagePrice, value);
+            get => _rejectType;
+            set => SetProperty(ref _rejectType, value);
+        }
+
+        private string _rejectedCommandType = string.Empty;
+        public string RejectedCommandType
+        {
+            get => _rejectedCommandType;
+            set => SetProperty(ref _rejectedCommandType, value);
+        }
+
+        #endregion
+
+        #region Additional Properties
+
+        private string _glid = string.Empty;
+        public string GLID
+        {
+            get => _glid;
+            set => SetProperty(ref _glid, value);
+        }
+
+        private string _currency = string.Empty;
+        public string Currency
+        {
+            get => _currency;
+            set => SetProperty(ref _currency, value);
+        }
+
+        private string _floorTraderId = string.Empty;
+        public string FloorTraderId
+        {
+            get => _floorTraderId;
+            set => SetProperty(ref _floorTraderId, value);
+        }
+
+        private string _tradeType = string.Empty;
+        public string TradeType
+        {
+            get => _tradeType;
+            set => SetProperty(ref _tradeType, value);
+        }
+
+        private string _acknowledgementType = string.Empty;
+        public string AcknowledgementType
+        {
+            get => _acknowledgementType;
+            set => SetProperty(ref _acknowledgementType, value);
+        }
+
+        private string _sleIndex = string.Empty;
+        public string SleIndex
+        {
+            get => _sleIndex;
+            set => SetProperty(ref _sleIndex, value);
         }
 
         #endregion
 
         #region Helper Methods
+
+        /// <summary>
+        /// Parsuje datę w formacie YYYYMMDDHHMMSS
+        /// </summary>
+        public static DateTime? ParseOrderDateTime(string dateTimeStr)
+        {
+            if (string.IsNullOrWhiteSpace(dateTimeStr) || dateTimeStr.Length != 14)
+                return null;
+
+            try
+            {
+                int year = int.Parse(dateTimeStr.Substring(0, 4));
+                int month = int.Parse(dateTimeStr.Substring(4, 2));
+                int day = int.Parse(dateTimeStr.Substring(6, 2));
+                int hour = int.Parse(dateTimeStr.Substring(8, 2));
+                int minute = int.Parse(dateTimeStr.Substring(10, 2));
+                int second = int.Parse(dateTimeStr.Substring(12, 2));
+
+                return new DateTime(year, month, day, hour, minute, second);
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         /// <summary>
         /// Zwraca czytelny opis strony (Buy/Sell)

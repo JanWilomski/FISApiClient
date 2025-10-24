@@ -1015,49 +1015,100 @@ namespace FISApiClient.Models
             try
             {
                 System.Diagnostics.Debug.WriteLine("[SLE] === PROCESSING ORDER BOOK REPLY (2004) ===");
+                System.Diagnostics.Debug.WriteLine($"[SLE] Total message length: {length}");
+                System.Diagnostics.Debug.WriteLine($"[SLE] STX position: {stxPos}");
+                
+                // HEX DUMP całej wiadomości
+                System.Diagnostics.Debug.WriteLine("[SLE] === FULL MESSAGE HEX DUMP ===");
+                for (int i = 0; i < Math.Min(length, 500); i++)
+                {
+                    if (i % 32 == 0)
+                        System.Diagnostics.Debug.Write($"\n[{i:D4}] ");
+                    System.Diagnostics.Debug.Write($"{response[i]:X2} ");
+                }
+                System.Diagnostics.Debug.WriteLine("\n[SLE] === END HEX DUMP ===");
                 
                 int pos = stxPos + HeaderLength;
                 
                 // A: Chaining
                 char chaining = (char)response[pos++];
-                System.Diagnostics.Debug.WriteLine($"[SLE] Chaining: {chaining}");
+                System.Diagnostics.Debug.WriteLine($"[SLE] Chaining: '{chaining}' (0x{((byte)chaining):X2})");
                 
                 // B: User number (5 bytes)
                 string userNum = System.Text.Encoding.ASCII.GetString(response, pos, 5);
                 pos += 5;
+                System.Diagnostics.Debug.WriteLine($"[SLE] User number: [{userNum}]");
                 
                 // C: Request category (1 byte)
                 char requestCategory = (char)response[pos++];
+                System.Diagnostics.Debug.WriteLine($"[SLE] Request category: '{requestCategory}' (0x{((byte)requestCategory):X2})");
                 
-                // Filler (1 byte)
-                pos++;
+                // Filler (1 byte) - WAŻNE: To NIE jest Reply Type!
+                byte fillerByte = response[pos++];
+                System.Diagnostics.Debug.WriteLine($"[SLE] Filler byte: 0x{fillerByte:X2}");
                 
                 // E: Index (6 bytes)
                 string index = System.Text.Encoding.ASCII.GetString(response, pos, 6);
                 pos += 6;
-                System.Diagnostics.Debug.WriteLine($"[SLE] Index: {index}");
+                System.Diagnostics.Debug.WriteLine($"[SLE] Index: [{index}]");
                 
                 // F: Number of replies (5 bytes)
                 string numRepliesStr = System.Text.Encoding.ASCII.GetString(response, pos, 5);
                 pos += 5;
-                int numReplies = int.Parse(numRepliesStr.Trim());
+                int numReplies = int.TryParse(numRepliesStr.Trim(), out int nr) ? nr : 0;
                 System.Diagnostics.Debug.WriteLine($"[SLE] Number of replies: {numReplies}");
                 
                 // G: Stockcode (GL encoded)
+                System.Diagnostics.Debug.WriteLine($"[SLE] About to decode Stockcode at position {pos}");
                 var (stockcode, bytesRead) = DecodeGLField(response, pos);
                 pos += bytesRead;
+                System.Diagnostics.Debug.WriteLine($"[SLE] Stockcode: [{stockcode}] (read {bytesRead} bytes)");
                 
                 // Filler (10 bytes)
+                System.Diagnostics.Debug.WriteLine($"[SLE] Filler 10 bytes at position {pos}:");
+                System.Diagnostics.Debug.Write("[SLE] ");
+                for (int i = 0; i < 10 && pos + i < response.Length; i++)
+                {
+                    System.Diagnostics.Debug.Write($"{response[pos + i]:X2} ");
+                }
+                System.Diagnostics.Debug.WriteLine("");
                 pos += 10;
+                
+                // Data for order rozpoczyna się tutaj
+                System.Diagnostics.Debug.WriteLine($"[SLE] === DATA FOR ORDER starts at position {pos} ===");
+                System.Diagnostics.Debug.WriteLine($"[SLE] Remaining bytes: {length - FooterLength - pos}");
+                
+                // HEX DUMP Data for order (pierwsze 200 bajtów)
+                System.Diagnostics.Debug.WriteLine("[SLE] === DATA FOR ORDER HEX DUMP (first 200 bytes) ===");
+                int dataStart = pos;
+                int dataEnd = Math.Min(dataStart + 200, length - FooterLength);
+                for (int i = dataStart; i < dataEnd; i++)
+                {
+                    if ((i - dataStart) % 32 == 0)
+                        System.Diagnostics.Debug.Write($"\n[{i - dataStart:D4}] ");
+                    System.Diagnostics.Debug.Write($"{response[i]:X2} ");
+                }
+                System.Diagnostics.Debug.WriteLine("\n[SLE] === END DATA HEX DUMP ===");
                 
                 // Parsuj Order Data
                 var order = ParseOrderData(response, pos, length - FooterLength, stockcode);
                 
                 if (order != null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[SLE] Parsed order: {order.OrderId}, Status: {order.Status}");
+                    System.Diagnostics.Debug.WriteLine($"[SLE] === SUCCESSFULLY PARSED ORDER ===");
+                    System.Diagnostics.Debug.WriteLine($"  OrderID: [{order.OrderId}]");
+                    System.Diagnostics.Debug.WriteLine($"  SleReference: [{order.SleReference}]");
+                    System.Diagnostics.Debug.WriteLine($"  ExchangeNumber: [{order.ExchangeNumber}]");
+                    System.Diagnostics.Debug.WriteLine($"  Side: {order.Side}");
+                    System.Diagnostics.Debug.WriteLine($"  Quantity: {order.Quantity}");
+                    System.Diagnostics.Debug.WriteLine($"  ExecutedQty: {order.ExecutedQuantity}");
+                    System.Diagnostics.Debug.WriteLine($"  RemainingQty: {order.RemainingQuantity}");
+                    System.Diagnostics.Debug.WriteLine($"  Status: {order.Status}");
+                    System.Diagnostics.Debug.WriteLine($"  OrderTime: {order.OrderTime}");
+                    System.Diagnostics.Debug.WriteLine($"  Price: {order.Price}");
+                    System.Diagnostics.Debug.WriteLine($"  AvgPrice: {order.AveragePrice}");
                     
-                    // Jeśli to pierwsze zlecenie (chaining != '1'), wyślij jako nową listę
+                    // Wyślij do Order Book
                     if (chaining == '0')
                     {
                         var orders = new List<Order> { order };
@@ -1065,17 +1116,20 @@ namespace FISApiClient.Models
                     }
                     else
                     {
-                        // Kolejne zlecenia - wyślij jako update
                         var orders = new List<Order> { order };
                         OrderBookReceived?.Invoke(orders);
                     }
                 }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[SLE] ❌ ORDER PARSING RETURNED NULL");
+                }
                 
-                System.Diagnostics.Debug.WriteLine("[SLE] === ORDER BOOK REPLY COMPLETE ===");
+                System.Diagnostics.Debug.WriteLine("[SLE] === ORDER BOOK REPLY COMPLETE ===\n");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SLE] Failed to parse order book reply: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[SLE] ❌ Failed to parse order book reply: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"[SLE] Stack trace: {ex.StackTrace}");
             }
         }
@@ -1096,103 +1150,285 @@ namespace FISApiClient.Models
                 
                 System.Diagnostics.Debug.WriteLine($"[SLE] === PARSING ORDER DATA SEQUENTIALLY ===");
                 System.Diagnostics.Debug.WriteLine($"[SLE] Start pos: {startPos}, End pos: {endPos}");
+                System.Diagnostics.Debug.WriteLine($"[SLE] Total bytes to parse: {endPos - startPos}");
                 
                 while (pos < endPos)
                 {
+                    // Sprawdź czy nie dotarliśmy do footera
                     if (pos + FooterLength <= endPos && response[pos + 2] == Etx)
                     {
                         System.Diagnostics.Debug.WriteLine($"[SLE] Reached footer at position {pos}");
                         break;
                     }
                     
+                    // Sprawdź czy nie przekroczyliśmy rozmiaru
+                    if (pos >= endPos)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SLE] Reached end of data at position {pos}");
+                        break;
+                    }
+                    
+                    // Decode GL field
+                    int posBeforeDecode = pos;
                     var (fieldValue, bytesRead) = DecodeGLField(response, pos);
                     pos += bytesRead;
                     
-                    if (!string.IsNullOrEmpty(fieldValue))
+                    // Debug dla każdego pola
+                    if (fieldNumber < 50 || !string.IsNullOrEmpty(fieldValue))
                     {
-                        bitmapFields[fieldNumber] = fieldValue;
-                        
-                        if (fieldNumber <= 10 || fieldNumber == 30 || fieldNumber == 42 || 
-                            fieldNumber == 62 || fieldNumber == 65 || fieldNumber == 101 || 
-                            fieldNumber == 102 || fieldNumber == 261)
+                        if (!string.IsNullOrEmpty(fieldValue))
                         {
-                            System.Diagnostics.Debug.WriteLine($"[SLE] Field #{fieldNumber} = [{fieldValue}]");
+                            System.Diagnostics.Debug.WriteLine($"[SLE] Field #{fieldNumber}: POS={posBeforeDecode}, LENGTH={bytesRead}, VALUE=[{fieldValue}]");
+                            bitmapFields[fieldNumber] = fieldValue;
+                        }
+                        else
+                        {
+                            // Pole puste (GL 0)
+                            if (fieldNumber < 20)
+                                System.Diagnostics.Debug.WriteLine($"[SLE] Field #{fieldNumber}: EMPTY (GL 0)");
                         }
                     }
                     
                     fieldNumber++;
                     
+                    // Zabezpieczenie
                     if (fieldNumber > 2000)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[SLE] Warning: Too many fields (>{fieldNumber}), breaking");
+                        System.Diagnostics.Debug.WriteLine($"[SLE] ⚠️ Warning: Too many fields (>{fieldNumber}), breaking");
                         break;
                     }
                 }
                 
+                System.Diagnostics.Debug.WriteLine($"[SLE] === PARSING COMPLETE ===");
                 System.Diagnostics.Debug.WriteLine($"[SLE] Total fields decoded: {fieldNumber}");
                 System.Diagnostics.Debug.WriteLine($"[SLE] Non-empty fields: {bitmapFields.Count}");
                 
+                // Wyświetl wszystkie niepuste pola
+                System.Diagnostics.Debug.WriteLine($"[SLE] === ALL NON-EMPTY FIELDS ===");
+                foreach (var kvp in bitmapFields.OrderBy(x => x.Key))
+                {
+                    System.Diagnostics.Debug.WriteLine($"  Field #{kvp.Key}: [{kvp.Value}]");
+                }
+                System.Diagnostics.Debug.WriteLine($"[SLE] ==============================");
+                
+                // Mapuj do Order
                 MapBitmapToOrder(order, bitmapFields);
                 
                 return order;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SLE] Failed to parse order data: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[SLE] ❌ Failed to parse order data: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"[SLE] Stack trace: {ex.StackTrace}");
                 return null;
             }
         }
 
+
+
         /// <summary>
         /// Mapuje pola bitmapy do właściwości obiektu Order
+        /// UWAGA: Numery pól według dokumentacji FIS Trading API WSE
         /// </summary>
         private void MapBitmapToOrder(Order order, Dictionary<int, string> fields)
         {
+            // === PODSTAWOWE POLA ZLECENIA ===
+            
+            // Field 0: Side (MANDATORY)
             if (fields.ContainsKey(0))
                 order.SetSide(fields[0]);
             
+            // Field 1: Quantity (MANDATORY)
             if (fields.ContainsKey(1) && long.TryParse(fields[1], out long qty))
                 order.Quantity = qty;
             
+            // Field 2: Modality (MANDATORY)
             if (fields.ContainsKey(2))
                 order.SetModality(fields[2]);
             
-            if (fields.ContainsKey(3) && decimal.TryParse(fields[3], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal price))
+            // Field 3: Price (conditional - dla Limit orders)
+            if (fields.ContainsKey(3) && decimal.TryParse(fields[3], 
+                System.Globalization.NumberStyles.Any, 
+                System.Globalization.CultureInfo.InvariantCulture, out decimal price))
                 order.Price = price;
             
+            // Field 4: Validity (MANDATORY)
             if (fields.ContainsKey(4))
                 order.SetValidity(fields[4]);
             
+            // Field 5: Expiry date
+            // TODO: Implement if needed
+            
+            // Field 8: Minimum quantity
+            if (fields.ContainsKey(8) && long.TryParse(fields[8], out long minQty))
+                order.MinimumQuantity = minQty;
+            
+            // Field 9: Displayed quantity (Iceberg orders)
+            if (fields.ContainsKey(9) && long.TryParse(fields[9], out long dispQty))
+                order.DisplayedQuantity = dispQty;
+            
+            // === POLA KLIENTA ===
+            
+            // Field 10: Client reference (max 8 chars)
             if (fields.ContainsKey(10))
                 order.ClientReference = fields[10];
             
+            // Field 12: Internal reference (max 16 chars)
+            if (fields.ContainsKey(12))
+                order.InternalReference = fields[12];
+            
+            // Field 13: Exchange number - NUMER ZLECENIA NA GIEŁDZIE (KRYTYCZNE!)
+            if (fields.ContainsKey(13))
+                order.ExchangeNumber = fields[13];
+            
+            // Field 17: Client Code Type
+            if (fields.ContainsKey(17))
+                order.ClientCodeType = fields[17];
+            
+            // Field 19: Allocation Code
+            if (fields.ContainsKey(19))
+                order.AllocationCode = fields[19];
+            
+            // === POLA STATUSU I CZASU ===
+            
+            // Field 30: Order status (from field 30, not reply type!)
             if (fields.ContainsKey(30))
                 order.SetStatus(fields[30]);
             
+            // Field 36: Order time - FORMAT: YYYYMMDDHHMMSS
+            if (fields.ContainsKey(36))
+            {
+                var orderTime = Order.ParseOrderDateTime(fields[36]);
+                if (orderTime.HasValue)
+                    order.OrderTime = orderTime.Value;
+            }
+            
+            // Field 37: Remain quantity (z serwera, bardziej dokładne niż kalkulacja lokalna)
+            if (fields.ContainsKey(37) && long.TryParse(fields[37], out long remainQty))
+                order.RemainingQuantity = remainQty;
+            
+            // Field 38: Number of executions
+            if (fields.ContainsKey(38) && int.TryParse(fields[38], out int numExec))
+                order.NumberOfExecutions = numExec;
+            
+            // Field 40: Average price - POPRAWNY NUMER (nie 102!)
+            if (fields.ContainsKey(40) && decimal.TryParse(fields[40], 
+                System.Globalization.NumberStyles.Any, 
+                System.Globalization.CultureInfo.InvariantCulture, out decimal avgPrice))
+                order.AveragePrice = avgPrice;
+            
+            // Field 41: Order status (alternatywna reprezentacja)
+            // Jeśli field 30 nie jest dostępne, użyj field 41
+            if (!fields.ContainsKey(30) && fields.ContainsKey(41))
+                order.SetStatus(fields[41]);
+            
+            // Field 42: SLE reference
             if (fields.ContainsKey(42))
                 order.SleReference = fields[42];
             
-            if (fields.ContainsKey(62))
+            // Field 44: Total executed quantity - POPRAWNY NUMER (nie 101!)
+            if (fields.ContainsKey(44) && long.TryParse(fields[44], out long totalExecQty))
+                order.ExecutedQuantity = totalExecQty;
+            
+            // === POLA WYKONANIA (EXECUTION) ===
+            
+            // Field 48: Execution price (cena pojedynczej egzekucji)
+            if (fields.ContainsKey(48) && decimal.TryParse(fields[48], 
+                System.Globalization.NumberStyles.Any, 
+                System.Globalization.CultureInfo.InvariantCulture, out decimal execPrice))
+                order.ExecutionPrice = execPrice;
+            
+            // Field 49: Execution quantity (ilość pojedynczej egzekucji)
+            // Uwaga: To jest quantity dla POJEDYNCZEJ egzekucji, nie całkowita!
+            // Całkowita wykonana ilość to field 44
+            
+            // Field 51: Exchange trade number
+            if (fields.ContainsKey(51))
+                order.TradeNumber = fields[51];
+            
+            // Field 52: Trade time - FORMAT: YYYYMMDDHHMMSS
+            if (fields.ContainsKey(52))
             {
-                order.OrderTime = DateTime.Now; // Placeholder
+                var tradeTime = Order.ParseOrderDateTime(fields[52]);
+                if (tradeTime.HasValue)
+                    order.TradeTime = tradeTime;
             }
             
+            // Field 53: Trade type
+            if (fields.ContainsKey(53))
+                order.TradeType = fields[53];
+            
+            // Field 57: Acknowledgement type
+            if (fields.ContainsKey(57))
+                order.AcknowledgementType = fields[57];
+            
+            // === POLA ODRZUCENIA ===
+            
+            // Field 62: Index (SLE database index - NIE CZAS!)
+            if (fields.ContainsKey(62))
+                order.SleIndex = fields[62];
+            
+            // Field 64: Reject type
+            if (fields.ContainsKey(64))
+                order.RejectType = fields[64];
+            
+            // Field 65: Rejects code (reject reason)
             if (fields.ContainsKey(65))
                 order.RejectReason = fields[65];
             
-            if (fields.ContainsKey(101) && long.TryParse(fields[101], out long execQty))
-                order.ExecutedQuantity = execQty;
+            // Field 66: Rejects time - FORMAT: YYYYMMDDHHMMSS
+            if (fields.ContainsKey(66))
+            {
+                var rejectTime = Order.ParseOrderDateTime(fields[66]);
+                if (rejectTime.HasValue)
+                    order.RejectTime = rejectTime;
+            }
             
-            if (fields.ContainsKey(102) && decimal.TryParse(fields[102], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal avgPrice))
-                order.AveragePrice = avgPrice;
+            // Field 67: Rejected command type
+            if (fields.ContainsKey(67))
+                order.RejectedCommandType = fields[67];
             
+            // === POLA DODATKOWE ===
+            
+            // Field 81: Memo
+            if (fields.ContainsKey(81))
+                order.Memo = fields[81];
+            
+            // Field 106: GLID
+            if (fields.ContainsKey(106))
+                order.GLID = fields[106];
+            
+            // Field 132: Clearing Account
+            if (fields.ContainsKey(132))
+                order.ClearingAccount = fields[132];
+            
+            // Field 147: Floor Trader ID
+            if (fields.ContainsKey(147))
+                order.FloorTraderId = fields[147];
+            
+            // Field 192: Currency
+            if (fields.ContainsKey(192))
+                order.Currency = fields[192];
+            
+            // Field 261: Order ID (Client identifier, max 16 chars)
             if (fields.ContainsKey(261))
                 order.OrderId = fields[261];
             
+            // Ustaw czas ostatniej aktualizacji
             order.LastUpdateTime = DateTime.Now;
             
-            System.Diagnostics.Debug.WriteLine($"[SLE] Mapped order - ID: {order.OrderId}, Side: {order.Side}, Qty: {order.Quantity}, Status: {order.Status}");
+            // Debug log
+            System.Diagnostics.Debug.WriteLine($"[SLE] Mapped order:");
+            System.Diagnostics.Debug.WriteLine($"  OrderID: {order.OrderId}");
+            System.Diagnostics.Debug.WriteLine($"  ExchangeNumber: {order.ExchangeNumber}");
+            System.Diagnostics.Debug.WriteLine($"  SleReference: {order.SleReference}");
+            System.Diagnostics.Debug.WriteLine($"  Side: {order.Side}");
+            System.Diagnostics.Debug.WriteLine($"  Quantity: {order.Quantity}");
+            System.Diagnostics.Debug.WriteLine($"  ExecutedQty: {order.ExecutedQuantity}");
+            System.Diagnostics.Debug.WriteLine($"  Status: {order.Status}");
+            System.Diagnostics.Debug.WriteLine($"  OrderTime: {order.OrderTime}");
+            System.Diagnostics.Debug.WriteLine($"  Price: {order.Price}");
+            System.Diagnostics.Debug.WriteLine($"  AvgPrice: {order.AveragePrice}");
         }
 
         /// <summary>
