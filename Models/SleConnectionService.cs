@@ -114,17 +114,15 @@ namespace FISApiClient.Models
 
         /// <summary>
         /// Wysyła nowe zlecenie (request 2000)
-        /// client code type v5 590
-        /// v3 84
         /// </summary>
         public async Task<bool> SendOrderAsync(
-            string localCode,      // ← ZMIANA: zamiast glidAndSymbol
-            string glid,           // ← NOWY parametr
-            int side,
+            string localCode,      
+            string glid,           
+            OrderSide side,
             long quantity,
-            string modality,
+            OrderModality modality,
             decimal price,
-            string validity,
+            OrderValidity validity,
             string clientReference,
             string internalReference,
             string clientCodeType,
@@ -142,7 +140,7 @@ namespace FISApiClient.Models
                 Debug.WriteLine($"[SLE] Sending order with LOCAL CODE");
                 Debug.WriteLine($"[SLE] LocalCode: {localCode}");
                 Debug.WriteLine($"[SLE] GLID: {glid}");
-                Debug.WriteLine($"[SLE] Side: {(side == 0 ? "BUY" : "SELL")}");
+                Debug.WriteLine($"[SLE] Side: {side}");
                 Debug.WriteLine($"[SLE] Quantity: {quantity}");
                 Debug.WriteLine($"[SLE] Modality: {modality}");
                 Debug.WriteLine($"[SLE] Price: {price}");
@@ -502,24 +500,48 @@ namespace FISApiClient.Models
             return BuildMessage(dataPayload, 2017);
         }
 
-        /// <summary>
-        /// POPRAWIONY BuildOrderRequest
-        /// Format zgodny z dokumentacją FIS API:
-        /// - Header: User(5) + Category(1) + Command(1) + Stockcode(GL) + Filler(10)
-        /// - Bitmap: Dla każdego pola [Field_ID jako GL][Value jako GL]
-        /// - PUSTE pola NIE są wysyłane
-        /// </summary>
-        /// <summary>
-        /// POPRAWIONY BuildOrderRequest - używa LocalCode w stockcode i GLID w Field 106
-        /// </summary>
+        private string GetOrderSideString(OrderSide side)
+        {
+            return side switch
+            {
+                OrderSide.Buy => "0",
+                OrderSide.Sell => "1",
+                _ => ""
+            };
+        }
+
+        private string GetOrderModalityString(OrderModality modality)
+        {
+            return modality switch
+            {
+                OrderModality.Limit => "L",
+                OrderModality.Market => "M",
+                OrderModality.Stop => "S",
+                OrderModality.Pegged => "P",
+                _ => ""
+            };
+        }
+
+        private string GetOrderValidityString(OrderValidity validity)
+        {
+            return validity switch
+            {
+                OrderValidity.Day => "J",
+                OrderValidity.FOK => "K",
+                OrderValidity.IOC => "I",
+                OrderValidity.GTC => "G",
+                _ => ""
+            };
+        }
+
         private byte[] BuildOrderRequest(
             string localCode,
             string glid,
-            int side,
+            OrderSide side,
             long quantity,
-            string modality,
+            OrderModality modality,
             decimal price,
-            string validity,
+            OrderValidity validity,
             string clientReference,
             string internalReference,
             string clientCodeType,
@@ -559,27 +581,27 @@ namespace FISApiClient.Models
             var fields = new Dictionary<int, string>();
             
             // Field 0: Side (MANDATORY)
-            fields[0] = side.ToString();
-            Debug.WriteLine($"[SLE] Field #0: Side = {side}");
+            fields[0] = GetOrderSideString(side);
+            Debug.WriteLine($"[SLE] Field #0: Side = {fields[0]}");
             
             // Field 1: Quantity (MANDATORY)
             fields[1] = quantity.ToString(CultureInfo.InvariantCulture);
             Debug.WriteLine($"[SLE] Field #1: Quantity = {quantity}");
             
             // Field 2: Modality (MANDATORY)
-            fields[2] = modality;
-            Debug.WriteLine($"[SLE] Field #2: Modality = {modality}");
+            fields[2] = GetOrderModalityString(modality);
+            Debug.WriteLine($"[SLE] Field #2: Modality = {fields[2]}");
             
             // Field 3: Price (conditional - tylko dla Limit orders)
-            if (modality == "L" && price > 0)
+            if (modality == OrderModality.Limit && price > 0)
             {
                 fields[3] = price.ToString(CultureInfo.InvariantCulture);
                 Debug.WriteLine($"[SLE] Field #3: Price = {price}");
             }
             
             // Field 4: Validity (MANDATORY)
-            fields[4] = validity;
-            Debug.WriteLine($"[SLE] Field #4: Validity = {validity}");
+            fields[4] = GetOrderValidityString(validity);
+            Debug.WriteLine($"[SLE] Field #4: Validity = {fields[4]}");
             
             // Field 10: Client reference (optional)
             if (!string.IsNullOrEmpty(clientReference))
@@ -1060,8 +1082,6 @@ namespace FISApiClient.Models
 
         /// <summary>
         /// Parsuje dane zlecenia z bitmapy i tworzy obiekt Order
-        /// KLUCZOWE: W odpowiedziach 2004/2008/2019 pola są wysyłane SEKWENCYJNIE bez numerów!
-        /// Format: [GL value#0][GL value#1][GL value#2]... gdzie puste pola to GL 0 (bajt 32)
         /// </summary>
         private Order? ParseOrderData(byte[] response, int startPos, int endPos, string stockcode)
         {
@@ -1077,26 +1097,21 @@ namespace FISApiClient.Models
                 System.Diagnostics.Debug.WriteLine($"[SLE] === PARSING ORDER DATA SEQUENTIALLY ===");
                 System.Diagnostics.Debug.WriteLine($"[SLE] Start pos: {startPos}, End pos: {endPos}");
                 
-                // Dekoduj pola SEKWENCYJNIE - każde kolejne pole GL-encoded to kolejny numer pola
                 while (pos < endPos)
                 {
-                    // Sprawdź czy nie dotarliśmy do footera (2 spacje + ETX)
                     if (pos + FooterLength <= endPos && response[pos + 2] == Etx)
                     {
                         System.Diagnostics.Debug.WriteLine($"[SLE] Reached footer at position {pos}");
                         break;
                     }
                     
-                    // Dekoduj wartość pola (GL encoded)
                     var (fieldValue, bytesRead) = DecodeGLField(response, pos);
                     pos += bytesRead;
                     
-                    // Jeśli pole nie jest puste (GL 0 daje pusty string), zapisz je
                     if (!string.IsNullOrEmpty(fieldValue))
                     {
                         bitmapFields[fieldNumber] = fieldValue;
                         
-                        // Loguj tylko kluczowe pola dla czytelności
                         if (fieldNumber <= 10 || fieldNumber == 30 || fieldNumber == 42 || 
                             fieldNumber == 62 || fieldNumber == 65 || fieldNumber == 101 || 
                             fieldNumber == 102 || fieldNumber == 261)
@@ -1107,7 +1122,6 @@ namespace FISApiClient.Models
                     
                     fieldNumber++;
                     
-                    // Zabezpieczenie przed nieskończoną pętlą
                     if (fieldNumber > 2000)
                     {
                         System.Diagnostics.Debug.WriteLine($"[SLE] Warning: Too many fields (>{fieldNumber}), breaking");
@@ -1118,7 +1132,6 @@ namespace FISApiClient.Models
                 System.Diagnostics.Debug.WriteLine($"[SLE] Total fields decoded: {fieldNumber}");
                 System.Diagnostics.Debug.WriteLine($"[SLE] Non-empty fields: {bitmapFields.Count}");
                 
-                // Mapuj pola do obiektu Order
                 MapBitmapToOrder(order, bitmapFields);
                 
                 return order;
@@ -1136,58 +1149,44 @@ namespace FISApiClient.Models
         /// </summary>
         private void MapBitmapToOrder(Order order, Dictionary<int, string> fields)
         {
-            // Field 0: Side (0=Buy, 1=Sell)
             if (fields.ContainsKey(0))
-                order.Side = fields[0];
+                order.SetSide(fields[0]);
             
-            // Field 1: Quantity
             if (fields.ContainsKey(1) && long.TryParse(fields[1], out long qty))
                 order.Quantity = qty;
             
-            // Field 2: Modality
             if (fields.ContainsKey(2))
-                order.Modality = fields[2];
+                order.SetModality(fields[2]);
             
-            // Field 3: Price
             if (fields.ContainsKey(3) && decimal.TryParse(fields[3], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal price))
                 order.Price = price;
             
-            // Field 4: Validity
             if (fields.ContainsKey(4))
-                order.Validity = fields[4];
+                order.SetValidity(fields[4]);
             
-            // Field 10: Client Reference
             if (fields.ContainsKey(10))
                 order.ClientReference = fields[10];
             
-            // Field 30: Order Status
             if (fields.ContainsKey(30))
-                order.Status = fields[30];
+                order.SetStatus(fields[30]);
             
-            // Field 42: SLE Reference
             if (fields.ContainsKey(42))
                 order.SleReference = fields[42];
             
-            // Field 62: Index (może być używany jako Order Time)
             if (fields.ContainsKey(62))
             {
-                // Można spróbować parsować jako timestamp
                 order.OrderTime = DateTime.Now; // Placeholder
             }
             
-            // Field 65: Reject Reason
             if (fields.ContainsKey(65))
                 order.RejectReason = fields[65];
             
-            // Field 101: Executed Quantity
             if (fields.ContainsKey(101) && long.TryParse(fields[101], out long execQty))
                 order.ExecutedQuantity = execQty;
             
-            // Field 102: Average Price
             if (fields.ContainsKey(102) && decimal.TryParse(fields[102], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal avgPrice))
                 order.AveragePrice = avgPrice;
             
-            // Field 261: Order ID
             if (fields.ContainsKey(261))
                 order.OrderId = fields[261];
             
@@ -1208,17 +1207,20 @@ namespace FISApiClient.Models
                 
                 MapBitmapToOrder(order, bitmapFields);
                 
-                // Aktualizuj status na podstawie reply type
-                order.Status = replyType switch
+                string statusFromReply = replyType switch
                 {
                     'A' => "A", // Accepted
                     'C' => "C", // Rejected
                     'G' => "C", // GL Reject
                     'R' => "E", // Executed
-                    _ => order.Status
+                    _ => null
                 };
+
+                if (statusFromReply != null)
+                {
+                    order.SetStatus(statusFromReply);
+                }
                 
-                // Wywołaj event dla real-time update
                 OrderUpdated?.Invoke(order);
                 
                 System.Diagnostics.Debug.WriteLine($"[SLE] Order update broadcasted - ID: {order.OrderId}, Status: {order.Status}");
@@ -1235,7 +1237,7 @@ namespace FISApiClient.Models
     public class OrderReply
     {
         public string OrderId { get; set; } = string.Empty;
-        public string Status { get; set; } = string.Empty;
+        public OrderStatus Status { get; set; } = OrderStatus.Unknown;
         public string Message { get; set; } = string.Empty;
         public decimal ExecutedPrice { get; set; }
         public long ExecutedQuantity { get; set; }

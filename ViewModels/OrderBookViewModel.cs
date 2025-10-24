@@ -84,26 +84,23 @@ namespace FISApiClient.ViewModels
         {
             _sleService = sleService;
 
-            // Inicjalizuj komendy - z parametrem object
             RefreshCommand = new RelayCommand(
-                async (parameter) => await RefreshOrderBook(), 
-                (parameter) => !IsLoading && _sleService.IsConnected
+                async _ => await RefreshOrderBook(), 
+                _ => !IsLoading && _sleService.IsConnected
             );
     
             CancelOrderCommand = new RelayCommand(
-                (parameter) => CancelSelectedOrder(), 
-                (parameter) => SelectedOrder != null
+                _ => CancelSelectedOrder(), 
+                _ => SelectedOrder != null
             );
     
-            ClearAllCommand = new RelayCommand((parameter) => ClearOrders());
+            ClearAllCommand = new RelayCommand(_ => ClearOrders());
 
-            // Subskrybuj eventy z SLE Service
             _sleService.OrderBookReceived += OnOrderBookReceived;
             _sleService.OrderUpdated += OnOrderUpdated;
 
             System.Diagnostics.Debug.WriteLine("[OrderBookVM] ViewModel initialized");
     
-            // Real-time jest już aktywny (request 2017 wysyłany przy logowaniu)
             IsRealTimeActive = _sleService.IsConnected;
             if (IsRealTimeActive)
             {
@@ -115,9 +112,6 @@ namespace FISApiClient.ViewModels
 
         #region Methods
 
-        /// <summary>
-        /// Odświeża Order Book - wysyła request 2004
-        /// </summary>
         private async System.Threading.Tasks.Task RefreshOrderBook()
         {
             ClearOrders();
@@ -162,9 +156,6 @@ namespace FISApiClient.ViewModels
             }
         }
 
-        /// <summary>
-        /// Anuluje wybrane zlecenie
-        /// </summary>
         private void CancelSelectedOrder()
         {
             if (SelectedOrder == null) return;
@@ -182,7 +173,6 @@ namespace FISApiClient.ViewModels
 
             if (result == MessageBoxResult.Yes)
             {
-                // TODO: Implementacja anulowania zlecenia (request 2000 z Command=2)
                 StatusMessage = "Anulowanie zlecenia - funkcja do implementacji";
                 MessageBox.Show(
                     "Funkcja anulowania zlecenia będzie wkrótce dostępna.",
@@ -193,9 +183,6 @@ namespace FISApiClient.ViewModels
             }
         }
 
-        /// <summary>
-        /// Czyści listę zleceń
-        /// </summary>
         private void ClearOrders()
         {
             Orders.Clear();
@@ -207,9 +194,6 @@ namespace FISApiClient.ViewModels
 
         #region Event Handlers
 
-        /// <summary>
-        /// Obsługuje otrzymanie danych Order Book z serwera
-        /// </summary>
         private void OnOrderBookReceived(System.Collections.Generic.List<Order> orders)
         {
             Application.Current.Dispatcher.Invoke(() =>
@@ -220,7 +204,6 @@ namespace FISApiClient.ViewModels
 
                     foreach (var order in orders)
                     {
-                        // Sprawdź czy zlecenie już istnieje (po OrderId lub SleReference)
                         var existingOrder = Orders.FirstOrDefault(o =>
                             (!string.IsNullOrEmpty(order.OrderId) && o.OrderId == order.OrderId) ||
                             (!string.IsNullOrEmpty(order.SleReference) && o.SleReference == order.SleReference)
@@ -228,13 +211,11 @@ namespace FISApiClient.ViewModels
 
                         if (existingOrder != null)
                         {
-                            // Aktualizuj istniejące zlecenie
                             UpdateOrderProperties(existingOrder, order);
                             System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Updated existing order: {order.OrderId}");
                         }
                         else
                         {
-                            // Dodaj nowe zlecenie
                             Orders.Add(order);
                             System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Added new order: {order.OrderId}");
                         }
@@ -252,9 +233,6 @@ namespace FISApiClient.ViewModels
             });
         }
 
-        /// <summary>
-        /// Obsługuje real-time update pojedynczego zlecenia
-        /// </summary>
         private void OnOrderUpdated(Order updatedOrder)
         {
             Application.Current.Dispatcher.Invoke(() =>
@@ -263,7 +241,6 @@ namespace FISApiClient.ViewModels
                 {
                     System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Real-time update for order: {updatedOrder.OrderId}");
 
-                    // Znajdź istniejące zlecenie
                     var existingOrder = Orders.FirstOrDefault(o =>
                         (!string.IsNullOrEmpty(updatedOrder.OrderId) && o.OrderId == updatedOrder.OrderId) ||
                         (!string.IsNullOrEmpty(updatedOrder.SleReference) && o.SleReference == updatedOrder.SleReference)
@@ -271,14 +248,12 @@ namespace FISApiClient.ViewModels
 
                     if (existingOrder != null)
                     {
-                        // Aktualizuj istniejące zlecenie
                         UpdateOrderProperties(existingOrder, updatedOrder);
                         System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Updated order via real-time: {updatedOrder.OrderId}");
                     }
                     else
                     {
-                        // Dodaj nowe zlecenie (nowo złożone)
-                        Orders.Insert(0, updatedOrder); // Dodaj na początku listy
+                        Orders.Insert(0, updatedOrder);
                         System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Added new order via real-time: {updatedOrder.OrderId}");
                     }
 
@@ -292,9 +267,6 @@ namespace FISApiClient.ViewModels
             });
         }
 
-        /// <summary>
-        /// Kopiuje właściwości z jednego zlecenia do drugiego
-        /// </summary>
         private void UpdateOrderProperties(Order target, Order source)
         {
             if (!string.IsNullOrEmpty(source.OrderId))
@@ -303,7 +275,7 @@ namespace FISApiClient.ViewModels
                 target.SleReference = source.SleReference;
             if (!string.IsNullOrEmpty(source.Instrument))
                 target.Instrument = source.Instrument;
-            if (!string.IsNullOrEmpty(source.Side))
+            if (source.Side != OrderSide.Unknown)
                 target.Side = source.Side;
             if (source.Quantity > 0)
                 target.Quantity = source.Quantity;
@@ -311,11 +283,11 @@ namespace FISApiClient.ViewModels
                 target.ExecutedQuantity = source.ExecutedQuantity;
             if (source.Price > 0)
                 target.Price = source.Price;
-            if (!string.IsNullOrEmpty(source.Modality))
+            if (source.Modality != OrderModality.Unknown)
                 target.Modality = source.Modality;
-            if (!string.IsNullOrEmpty(source.Validity))
+            if (source.Validity != OrderValidity.Unknown)
                 target.Validity = source.Validity;
-            if (!string.IsNullOrEmpty(source.Status))
+            if (source.Status != OrderStatus.Unknown)
                 target.Status = source.Status;
             if (source.OrderTime != default)
                 target.OrderTime = source.OrderTime;

@@ -1,16 +1,20 @@
 using System.Windows;
 using System.Windows.Controls;
+using FISApiClient.Services;
 using FISApiClient.ViewModels;
 
 namespace FISApiClient
 {
     public partial class MainWindow : Window
     {
+        private readonly NavigationService _navigationService;
+
         public MainWindow()
         {
             InitializeComponent();
             
-            // Ustaw domyślne hasła
+            _navigationService = new NavigationService();
+
             if (DataContext is ConnectionViewModel viewModel)
             {
                 MdsPasswordBox.Password = viewModel.MdsPassword;
@@ -39,9 +43,8 @@ namespace FISApiClient
             if (DataContext is ConnectionViewModel viewModel)
             {
                 var mdsService = viewModel.GetMdsService();
-                var sleService = viewModel.GetSleService(); // Pobierz również SleConnectionService
-                var instrumentWindow = new Views.InstrumentListWindow(mdsService, sleService);
-                instrumentWindow.Show();
+                var sleService = viewModel.GetSleService();
+                _navigationService.ShowInstrumentListWindow(mdsService, sleService);
             }
         }
     }

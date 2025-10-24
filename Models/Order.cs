@@ -51,11 +51,21 @@ namespace FISApiClient.Models
             set => SetProperty(ref _instrument, value);
         }
 
-        private string _side = string.Empty;
-        public string Side
+        private OrderSide _side = OrderSide.Unknown;
+        public OrderSide Side
         {
             get => _side;
             set => SetProperty(ref _side, value);
+        }
+
+        public void SetSide(string value)
+        {
+            Side = value switch
+            {
+                "0" => OrderSide.Buy,
+                "1" => OrderSide.Sell,
+                _ => OrderSide.Unknown
+            };
         }
 
         private long _quantity;
@@ -87,25 +97,64 @@ namespace FISApiClient.Models
             set => SetProperty(ref _price, value);
         }
 
-        private string _modality = string.Empty;
-        public string Modality
+        private OrderModality _modality = OrderModality.Unknown;
+        public OrderModality Modality
         {
             get => _modality;
             set => SetProperty(ref _modality, value);
         }
 
-        private string _validity = string.Empty;
-        public string Validity
+        public void SetModality(string value)
+        {
+            Modality = value switch
+            {
+                "L" => OrderModality.Limit,
+                "M" => OrderModality.Market,
+                "S" => OrderModality.Stop,
+                "P" => OrderModality.Pegged,
+                _ => OrderModality.Unknown
+            };
+        }
+
+        private OrderValidity _validity = OrderValidity.Unknown;
+        public OrderValidity Validity
         {
             get => _validity;
             set => SetProperty(ref _validity, value);
         }
 
-        private string _status = string.Empty;
-        public string Status
+        public void SetValidity(string value)
+        {
+            Validity = value switch
+            {
+                "J" => OrderValidity.Day,
+                "K" => OrderValidity.FOK,
+                "I" => OrderValidity.IOC,
+                "G" => OrderValidity.GTC,
+                _ => OrderValidity.Unknown
+            };
+        }
+
+        private OrderStatus _status = OrderStatus.Unknown;
+        public OrderStatus Status
         {
             get => _status;
             set => SetProperty(ref _status, value);
+        }
+
+        public void SetStatus(string value)
+        {
+            Status = value switch
+            {
+                "A" => OrderStatus.Accepted,
+                "C" => OrderStatus.Rejected,
+                "E" => OrderStatus.Executed,
+                "P" => OrderStatus.PartiallyExecuted,
+                "X" => OrderStatus.Cancelled,
+                "M" => OrderStatus.Modified,
+                "W" => OrderStatus.Working,
+                _ => OrderStatus.Unknown
+            };
         }
 
         private DateTime _orderTime;
@@ -154,9 +203,9 @@ namespace FISApiClient.Models
         {
             return Side switch
             {
-                "0" => "Buy",
-                "1" => "Sell",
-                _ => Side
+                OrderSide.Buy => "Buy",
+                OrderSide.Sell => "Sell",
+                _ => "Unknown"
             };
         }
 
@@ -167,11 +216,11 @@ namespace FISApiClient.Models
         {
             return Modality switch
             {
-                "L" => "Limit",
-                "M" => "Market",
-                "S" => "Stop",
-                "P" => "Pegged",
-                _ => Modality
+                OrderModality.Limit => "Limit",
+                OrderModality.Market => "Market",
+                OrderModality.Stop => "Stop",
+                OrderModality.Pegged => "Pegged",
+                _ => "Unknown"
             };
         }
 
@@ -182,11 +231,11 @@ namespace FISApiClient.Models
         {
             return Validity switch
             {
-                "J" => "Day",
-                "K" => "FOK",
-                "I" => "IOC",
-                "G" => "GTC",
-                _ => Validity
+                OrderValidity.Day => "Day",
+                OrderValidity.FOK => "FOK",
+                OrderValidity.IOC => "IOC",
+                OrderValidity.GTC => "GTC",
+                _ => "Unknown"
             };
         }
 
@@ -197,14 +246,14 @@ namespace FISApiClient.Models
         {
             return Status switch
             {
-                "A" => "Accepted",
-                "C" => "Rejected",
-                "E" => "Executed",
-                "P" => "Partially Executed",
-                "X" => "Cancelled",
-                "M" => "Modified",
-                "W" => "Working",
-                _ => Status
+                OrderStatus.Accepted => "Accepted",
+                OrderStatus.Rejected => "Rejected",
+                OrderStatus.Executed => "Executed",
+                OrderStatus.PartiallyExecuted => "Partially Executed",
+                OrderStatus.Cancelled => "Cancelled",
+                OrderStatus.Modified => "Modified",
+                OrderStatus.Working => "Working",
+                _ => "Unknown"
             };
         }
 

@@ -13,42 +13,42 @@ namespace FISApiClient.ViewModels
 
         #region MDS Properties
 
-        private string _mdsIpAddress = "192.168.45.25";
+        private string _mdsIpAddress;
         public string MdsIpAddress
         {
             get => _mdsIpAddress;
             set => SetProperty(ref _mdsIpAddress, value);
         }
 
-        private string _mdsPort = "25503";
+        private string _mdsPort;
         public string MdsPort
         {
             get => _mdsPort;
             set => SetProperty(ref _mdsPort, value);
         }
 
-        private string _mdsUser = "103";
+        private string _mdsUser;
         public string MdsUser
         {
             get => _mdsUser;
             set => SetProperty(ref _mdsUser, value);
         }
 
-        private string _mdsPassword = "glglgl";
+        private string _mdsPassword;
         public string MdsPassword
         {
             get => _mdsPassword;
             set => SetProperty(ref _mdsPassword, value);
         }
 
-        private string _mdsNode = "5500";
+        private string _mdsNode;
         public string MdsNode
         {
             get => _mdsNode;
             set => SetProperty(ref _mdsNode, value);
         }
 
-        private string _mdsSubnode = "4500";
+        private string _mdsSubnode;
         public string MdsSubnode
         {
             get => _mdsSubnode;
@@ -94,42 +94,42 @@ namespace FISApiClient.ViewModels
 
         #region SLE Properties
 
-        private string _sleIpAddress = "172.31.136.4";
+        private string _sleIpAddress;
         public string SleIpAddress
         {
             get => _sleIpAddress;
             set => SetProperty(ref _sleIpAddress, value);
         }
 
-        private string _slePort = "19593";
+        private string _slePort;
         public string SlePort
         {
             get => _slePort;
             set => SetProperty(ref _slePort, value);
         }
 
-        private string _sleUser = "151";
+        private string _sleUser;
         public string SleUser
         {
             get => _sleUser;
             set => SetProperty(ref _sleUser, value);
         }
 
-        private string _slePassword = "glglgl";
+        private string _slePassword;
         public string SlePassword
         {
             get => _slePassword;
             set => SetProperty(ref _slePassword, value);
         }
 
-        private string _sleNode = "24300";
+        private string _sleNode;
         public string SleNode
         {
             get => _sleNode;
             set => SetProperty(ref _sleNode, value);
         }
 
-        private string _sleSubnode = "14300";
+        private string _sleSubnode;
         public string SleSubnode
         {
             get => _sleSubnode;
@@ -198,6 +198,23 @@ namespace FISApiClient.ViewModels
         {
             _mdsService = new MdsConnectionService();
             _sleService = new SleConnectionService();
+
+            // Load settings from ConfigProvider
+            var mdsSettings = ConfigProvider.GetMdsSettings();
+            MdsIpAddress = mdsSettings.IpAddress;
+            MdsPort = mdsSettings.Port;
+            MdsUser = mdsSettings.User;
+            MdsPassword = mdsSettings.Password;
+            MdsNode = mdsSettings.Node;
+            MdsSubnode = mdsSettings.Subnode;
+
+            var sleSettings = ConfigProvider.GetSleSettings();
+            SleIpAddress = sleSettings.IpAddress;
+            SlePort = sleSettings.Port;
+            SleUser = sleSettings.User;
+            SlePassword = sleSettings.Password;
+            SleNode = sleSettings.Node;
+            SleSubnode = sleSettings.Subnode;
 
             ConnectMdsCommand = new RelayCommand(
                 async _ => await ConnectMdsAsync(),

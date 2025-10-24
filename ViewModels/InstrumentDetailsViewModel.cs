@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using FISApiClient.Helpers;
 using FISApiClient.Models;
@@ -225,8 +227,8 @@ namespace FISApiClient.ViewModels
             set => SetProperty(ref _orderPrice, value);
         }
 
-        private string _selectedModality = "L";
-        public string SelectedModality
+        private OrderModality _selectedModality = OrderModality.Limit;
+        public OrderModality SelectedModality
         {
             get => _selectedModality;
             set
@@ -239,14 +241,20 @@ namespace FISApiClient.ViewModels
             }
         }
 
-        private string _selectedValidity = "J";
-        public string SelectedValidity
+        private OrderValidity _selectedValidity = OrderValidity.Day;
+        public OrderValidity SelectedValidity
         {
             get => _selectedValidity;
             set => SetProperty(ref _selectedValidity, value);
         }
 
-        public bool IsPriceEnabled => SelectedModality == "L";
+        public IEnumerable<OrderModality> Modalities => 
+            Enum.GetValues(typeof(OrderModality)).Cast<OrderModality>().Where(m => m != OrderModality.Unknown);
+
+        public IEnumerable<OrderValidity> Validities => 
+            Enum.GetValues(typeof(OrderValidity)).Cast<OrderValidity>().Where(v => v != OrderValidity.Unknown);
+
+        public bool IsPriceEnabled => SelectedModality == OrderModality.Limit;
 
         public bool IsSleConnected => _sleService?.IsConnected ?? false;
 
@@ -308,10 +316,8 @@ namespace FISApiClient.ViewModels
                 _ => IsSleConnected && !IsSendingOrder && Details != null && Details.BidPrice > 0
             );
 
-            // Podpięcie eventu
             _mdsService.InstrumentDetailsReceived += OnInstrumentDetailsReceived;
 
-            // Automatyczne załadowanie danych z real-time updates
             _ = LoadDetailsAsync();
         }
 
@@ -326,8 +332,7 @@ namespace FISApiClient.ViewModels
             if (!long.TryParse(OrderQuantity, out long qty) || qty <= 0)
                 return false;
 
-            // Sprawdź cenę tylko dla Limit orders
-            if (SelectedModality == "L")
+            if (SelectedModality == OrderModality.Limit)
             {
                 if (string.IsNullOrWhiteSpace(OrderPrice))
                     return false;
@@ -364,11 +369,9 @@ namespace FISApiClient.ViewModels
                 return;
             }
 
-            // Potwierdzenie zlecenia
             string sideText = IsBuy ? "KUPNO" : "SPRZEDAŻ";
-            string modalityText = SelectedModality == "L" ? "Limit" : 
-                                 SelectedModality == "B" ? "At Best" : "Market";
-            string priceText = SelectedModality == "L" ? $" po cenie {OrderPrice}" : "";
+            string modalityText = GetModalityDescription(SelectedModality);
+            string priceText = SelectedModality == OrderModality.Limit ? $" po cenie {OrderPrice}" : "";
             
             var result = MessageBox.Show(
                 $"Czy na pewno chcesz wysłać zlecenie?\n\n" +
@@ -398,16 +401,15 @@ namespace FISApiClient.ViewModels
             try
             {
                 long quantity = long.Parse(OrderQuantity);
-                decimal price = !string.IsNullOrEmpty(OrderPrice) && SelectedModality == "L" 
+                decimal price = !string.IsNullOrEmpty(OrderPrice) && SelectedModality == OrderModality.Limit 
                     ? decimal.Parse(OrderPrice, System.Globalization.NumberStyles.Any, 
                                     System.Globalization.CultureInfo.InvariantCulture) : 0;
 
-                int side = IsBuy ? 0 : 1;
-                
+                OrderSide side = IsBuy ? OrderSide.Buy : OrderSide.Sell;
                 
                 bool success = await _sleService.SendOrderAsync(
-                    _instrument.LocalCode,  // ← LocalCode do pola G (Stockcode)
-                    _instrument.Glid,       // ← GLID do Field 106
+                    _instrument.LocalCode, 
+                    _instrument.Glid,      
                     side,
                     quantity,
                     SelectedModality,
@@ -476,11 +478,9 @@ namespace FISApiClient.ViewModels
         {
             if (Details == null) return;
 
-            // Ustaw parametry quick order
             IsBuy = isBuy;
-            SelectedModality = "L";
+            SelectedModality = OrderModality.Limit;
             
-            // Użyj Ask price dla buy, Bid price dla sell
             if (isBuy && Details.AskPrice > 0)
             {
                 OrderPrice = Details.AskPrice.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
@@ -490,21 +490,30 @@ namespace FISApiClient.ViewModels
                 OrderPrice = Details.BidPrice.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
             }
 
-            // Wyślij zlecenie
             await SendOrderAsync();
         }
 
-        private string GetValidityDescription(string validity)
+        private string GetModalityDescription(OrderModality modality)
+        {
+            return modality switch
+            {
+                OrderModality.Limit => "Limit",
+                OrderModality.Market => "Market",
+                OrderModality.Stop => "Stop",
+                OrderModality.Pegged => "Pegged",
+                _ => modality.ToString()
+            };
+        }
+
+        private string GetValidityDescription(OrderValidity validity)
         {
             return validity switch
             {
-                "J" => "Day (dzień)",
-                "K" => "FOK (Fill or Kill)",
-                "E" => "E&E (Execute & Eliminate)",
-                "R" => "GTC (Good Till Cancelled)",
-                "V" => "Auction (aukcja)",
-                "C" => "Closing (zamknięcie)",
-                _ => validity
+                OrderValidity.Day => "Day (dzień)",
+                OrderValidity.FOK => "FOK (Fill or Kill)",
+                OrderValidity.IOC => "IOC (Immediate or Cancel)",
+                OrderValidity.GTC => "GTC (Good Till Cancelled)",
+                _ => validity.ToString()
             };
         }
 
@@ -522,7 +531,6 @@ namespace FISApiClient.ViewModels
                 return;
             }
 
-            // Zapobiegaj wielokrotnym jednoczesnym requestom
             if (_isRequestInProgress)
             {
                 System.Diagnostics.Debug.WriteLine($"[ViewModel] Request already in progress, ignoring");
@@ -541,34 +549,30 @@ namespace FISApiClient.ViewModels
                 string glidAndSymbol = _instrument.Glid + _instrument.Symbol;
                 System.Diagnostics.Debug.WriteLine($"[ViewModel] Requesting real-time details for: {glidAndSymbol}");
                 
-                // Używamy request 1001 (refreshed) zamiast 1000 (snapshot)
                 await _mdsService.RequestInstrumentDetails(glidAndSymbol);
                 _isRealTimeActive = true;
                 
                 System.Diagnostics.Debug.WriteLine($"[ViewModel] Request sent, waiting for snapshot + real-time updates...");
                 
-                // Czekaj maksymalnie 10 sekund na odpowiedź snapshot
                 int waitTime = 0;
-                int maxWait = 10000; // 10 sekund
-                int checkInterval = 100; // sprawdzaj co 100ms
+                int maxWait = 10000; 
+                int checkInterval = 100;
                 
                 while (waitTime < maxWait)
                 {
                     await System.Threading.Tasks.Task.Delay(checkInterval);
                     waitTime += checkInterval;
                     
-                    // Sprawdź czy IsLoading zostało wyłączone przez OnInstrumentDetailsReceived
                     if (!IsLoading)
                     {
                         System.Diagnostics.Debug.WriteLine($"[ViewModel] Snapshot received after {waitTime}ms");
                         System.Diagnostics.Debug.WriteLine($"[ViewModel] Now receiving real-time updates (request 1003)...");
                         StatusMessage = $"✓ Real-Time aktywny | Updates: {UpdateCount}";
                         _isRequestInProgress = false;
-                        return; // Dane otrzymane
+                        return;
                     }
                 }
                 
-                // Timeout - nie otrzymano danych
                 System.Diagnostics.Debug.WriteLine($"[ViewModel] Timeout after {maxWait}ms");
                 IsLoading = false;
                 StatusMessage = "Timeout: Nie otrzymano odpowiedzi od serwera";
@@ -599,13 +603,11 @@ namespace FISApiClient.ViewModels
 
         private void OnInstrumentDetailsReceived(InstrumentDetails details)
         {
-            // Debug - sprawdź co przyszło
             System.Diagnostics.Debug.WriteLine($"[ViewModel] ========== RECEIVED DETAILS ==========");
             System.Diagnostics.Debug.WriteLine($"[ViewModel] Received GlidAndSymbol: '{details.GlidAndSymbol}' (Length: {details.GlidAndSymbol.Length})");
             System.Diagnostics.Debug.WriteLine($"[ViewModel] Expected GLID: '{_instrument.Glid}' (Length: {_instrument.Glid.Length})");
             System.Diagnostics.Debug.WriteLine($"[ViewModel] Expected Symbol: '{_instrument.Symbol}' (Length: {_instrument.Symbol.Length})");
             
-            // Wyciągnij GLID i Symbol z odpowiedzi
             string receivedGlid = details.GlidAndSymbol.Length >= 12 
                 ? details.GlidAndSymbol.Substring(0, 12) 
                 : details.GlidAndSymbol;
@@ -617,7 +619,6 @@ namespace FISApiClient.ViewModels
             System.Diagnostics.Debug.WriteLine($"[ViewModel] Parsed received GLID: '{receivedGlid}'");
             System.Diagnostics.Debug.WriteLine($"[ViewModel] Parsed received Symbol: '{receivedSymbol}'");
             
-            // Porównaj GLID (z uwzględnieniem białych znaków i wielkości liter)
             bool glidMatches = receivedGlid.Trim().Equals(_instrument.Glid.Trim(), StringComparison.OrdinalIgnoreCase);
             System.Diagnostics.Debug.WriteLine($"[ViewModel] GLID matches: {glidMatches}");
             
@@ -628,7 +629,6 @@ namespace FISApiClient.ViewModels
                 return;
             }
             
-            // Porównaj symbole (ignorując wielkość liter i białe znaki)
             bool symbolMatches = receivedSymbol.Trim().Equals(_instrument.Symbol.Trim(), StringComparison.OrdinalIgnoreCase);
             System.Diagnostics.Debug.WriteLine($"[ViewModel] Symbol matches: {symbolMatches}");
             
@@ -642,13 +642,11 @@ namespace FISApiClient.ViewModels
             System.Diagnostics.Debug.WriteLine($"[ViewModel] ✓ MATCH FOUND! Updating UI...");
             System.Diagnostics.Debug.WriteLine($"[ViewModel] =====================================");
             
-            // Uruchom na wątku UI
             Application.Current.Dispatcher.Invoke(() =>
             {
                 Details = details;
                 IsLoading = false;
                 
-                // Inkrementuj licznik aktualizacji (dla snapshot będzie 1, dla real-time będzie rosnąć)
                 UpdateCount++;
                 
                 if (_isRealTimeActive)
@@ -660,7 +658,6 @@ namespace FISApiClient.ViewModels
                     StatusMessage = $"Ostatnia aktualizacja: {DateTime.Now:HH:mm:ss}";
                 }
                 
-                // Zaktualizuj przyciski Quick Order
                 QuickBuyCommand.RaiseCanExecuteChanged();
                 QuickSellCommand.RaiseCanExecuteChanged();
             });
@@ -679,7 +676,6 @@ namespace FISApiClient.ViewModels
             LastTradeTime = !string.IsNullOrEmpty(Details.LastTradeTime) ? Details.LastTradeTime : "-";
             Volume = Details.Volume > 0 ? Details.Volume.ToString("N0") : "Brak danych";
             
-            // Sprawdź czy mamy dane OHLC
             bool hasOHLC = Details.OpenPrice > 0 || Details.HighPrice > 0 || 
                            Details.LowPrice > 0 || Details.ClosePrice > 0;
             
@@ -701,7 +697,6 @@ namespace FISApiClient.ViewModels
             TradingPhase = !string.IsNullOrEmpty(Details.TradingPhase) ? Details.TradingPhase : "Nieznana";
             SuspensionIndicator = !string.IsNullOrEmpty(Details.SuspensionIndicator) ? Details.SuspensionIndicator : "-";
 
-            // Formatowanie zmiany procentowej
             if (Details.PercentageVariation != 0)
             {
                 string sign = Details.VariationSign == "+" ? "+" : Details.VariationSign == "-" ? "-" : "";
@@ -716,7 +711,6 @@ namespace FISApiClient.ViewModels
                 VariationColor = "#666666";
             }
 
-            // Oblicz spread
             if (Details.BidPrice > 0 && Details.AskPrice > 0)
             {
                 decimal spreadValue = Details.AskPrice - Details.BidPrice;
@@ -743,10 +737,8 @@ namespace FISApiClient.ViewModels
         {
             System.Diagnostics.Debug.WriteLine($"[ViewModel] Cleanup called for {_instrument.Symbol}");
             
-            // Odpinamy event handler
             _mdsService.InstrumentDetailsReceived -= OnInstrumentDetailsReceived;
             
-            // Zatrzymujemy real-time updates jeśli były aktywne
             if (_isRealTimeActive)
             {
                 string glidAndSymbol = _instrument.Glid + _instrument.Symbol;
@@ -768,63 +760,63 @@ namespace FISApiClient.ViewModels
         
         #region FIS Workstation Parameters
 
-        private string _clientCodeType = "C"; // Origin: Client
+        private string _clientCodeType = "C";
         public string ClientCodeType
         {
             get => _clientCodeType;
             set => SetProperty(ref _clientCodeType, value);
         }
 
-        private string _clearingAccount = "0100"; // Clearing Account
+        private string _clearingAccount = "0100";
         public string ClearingAccount
         {
             get => _clearingAccount;
             set => SetProperty(ref _clearingAccount, value);
         }
 
-        private string _allocationCode = "0959"; // Allocation receptor
+        private string _allocationCode = "0959";
         public string AllocationCode
         {
             get => _allocationCode;
             set => SetProperty(ref _allocationCode, value);
         }
 
-        private string _memo = "7841"; // Memo
+        private string _memo = "7841";
         public string Memo
         {
             get => _memo;
             set => SetProperty(ref _memo, value);
         }
 
-        private string _secondClientCodeType = "B"; // Originator Origin: External B (Broker)
+        private string _secondClientCodeType = "B";
         public string SecondClientCodeType
         {
             get => _secondClientCodeType;
             set => SetProperty(ref _secondClientCodeType, value);
         }
 
-        private string _floorTraderId = "0959"; // Own Broker D
+        private string _floorTraderId = "0959";
         public string FloorTraderId
         {
             get => _floorTraderId;
             set => SetProperty(ref _floorTraderId, value);
         }
 
-        private string _clientFreeField1 = "100"; // Custom
+        private string _clientFreeField1 = "100";
         public string ClientFreeField1
         {
             get => _clientFreeField1;
             set => SetProperty(ref _clientFreeField1, value);
         }
 
-        private string _clientReference = "784"; // Cl. Ref
+        private string _clientReference = "784";
         public string ClientReference
         {
             get => _clientReference;
             set => SetProperty(ref _clientReference, value);
         }
 
-        private string _currency = "PLN"; // Currency
+        private string _currency = "PLN";
         public string Currency
         {
             get => _currency;
