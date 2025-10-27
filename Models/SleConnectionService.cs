@@ -1480,6 +1480,298 @@ namespace FISApiClient.Models
                 System.Diagnostics.Debug.WriteLine($"[SLE] Failed to handle order update: {ex.Message}");
             }
         }
+        
+        public async Task<bool> ModifyOrder(
+            string exchangeNumber,
+            string localCode,
+            string glid,
+            long? newQuantity = null,
+            decimal? newPrice = null,
+            OrderValidity? newValidity = null,
+            string clientReference = "",
+            string internalReference = "",
+            string clientCodeType = "",
+            string clearingAccount = "",
+            string allocationCode = "",
+            string memo = "")
+        {
+            if (!IsConnected)
+            {
+                Debug.WriteLine("[SLE] Cannot modify order - not connected");
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(exchangeNumber))
+            {
+                Debug.WriteLine("[SLE] ✗ Cannot modify order - ExchangeNumber is required!");
+                return false;
+            }
+
+            try
+            {
+                Debug.WriteLine($"[SLE] ========================================");
+                Debug.WriteLine($"[SLE] MODIFYING ORDER");
+                Debug.WriteLine($"[SLE] ExchangeNumber: {exchangeNumber}");
+                Debug.WriteLine($"[SLE] LocalCode: {localCode}");
+                Debug.WriteLine($"[SLE] GLID: {glid}");
+                if (newQuantity.HasValue)
+                    Debug.WriteLine($"[SLE] New Quantity: {newQuantity.Value}");
+                if (newPrice.HasValue)
+                    Debug.WriteLine($"[SLE] New Price: {newPrice.Value}");
+                if (newValidity.HasValue)
+                    Debug.WriteLine($"[SLE] New Validity: {newValidity.Value}");
+
+                byte[] modifyRequest = BuildModifyOrderRequest(
+                    exchangeNumber, localCode, glid, newQuantity, newPrice, newValidity,
+                    clientReference, internalReference, clientCodeType, clearingAccount,
+                    allocationCode, memo);
+
+                await _stream.WriteAsync(modifyRequest, 0, modifyRequest.Length);
+                await _stream.FlushAsync();
+
+                Debug.WriteLine($"[SLE] ✓ Order modification sent successfully");
+                Debug.WriteLine($"[SLE] ========================================");
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SLE] ✗ Failed to modify order: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Anuluje istniejące zlecenie (Command = 1)
+        /// WYMAGA: ExchangeNumber (field 13) - MANDATORY
+        /// </summary>
+        public async Task<bool> CancelOrder(
+            string exchangeNumber,
+            string localCode,
+            string glid,
+            string clientReference = "",
+            string internalReference = "")
+        {
+            if (!IsConnected)
+            {
+                Debug.WriteLine("[SLE] Cannot cancel order - not connected");
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(exchangeNumber))
+            {
+                Debug.WriteLine("[SLE] ✗ Cannot cancel order - ExchangeNumber is required!");
+                return false;
+            }
+
+            try
+            {
+                Debug.WriteLine($"[SLE] ========================================");
+                Debug.WriteLine($"[SLE] CANCELLING ORDER");
+                Debug.WriteLine($"[SLE] ExchangeNumber: {exchangeNumber}");
+                Debug.WriteLine($"[SLE] LocalCode: {localCode}");
+                Debug.WriteLine($"[SLE] GLID: {glid}");
+
+                byte[] cancelRequest = BuildCancelOrderRequest(
+                    exchangeNumber, localCode, glid, clientReference, internalReference);
+
+                await _stream.WriteAsync(cancelRequest, 0, cancelRequest.Length);
+                await _stream.FlushAsync();
+
+                Debug.WriteLine($"[SLE] ✓ Order cancellation sent successfully");
+                Debug.WriteLine($"[SLE] ========================================");
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SLE] ✗ Failed to cancel order: {ex.Message}");
+                return false;
+            }
+        }
+
+        private byte[] BuildModifyOrderRequest(
+            string exchangeNumber,
+            string localCode,
+            string glid,
+            long? newQuantity,
+            decimal? newPrice,
+            OrderValidity? newValidity,
+            string clientReference,
+            string internalReference,
+            string clientCodeType,
+            string clearingAccount,
+            string allocationCode,
+            string memo)
+        {
+            var dataBuilder = new List<byte>();
+
+            // User Number (B) - 5 ASCII digits
+            string userStr = _userNumber.PadLeft(5, '0');
+            dataBuilder.AddRange(Encoding.ASCII.GetBytes(userStr));
+
+            // Request Category (C) - 1 ASCII char - 'O' = Simple order
+            dataBuilder.Add((byte)'O');
+
+            // Command (D1) - 1 ASCII digit - '2' = Update/Modify order
+            dataBuilder.Add((byte)'2');
+
+            // Stockcode (G) - GL encoded (LocalCode/ISIN)
+            byte[] stockcodeEncoded = EncodeField(localCode);
+            dataBuilder.AddRange(stockcodeEncoded);
+
+            // Filler - 10 bytes (FILLER type = wszystkie 32)
+            for (int i = 0; i < 10; i++)
+                dataBuilder.Add(32);
+
+            // === BITMAP ===
+            var fields = new Dictionary<int, string>();
+
+            // Field 13: Exchange number - MANDATORY dla modyfikacji!
+            fields[13] = exchangeNumber;
+
+            // Field 1: Quantity - tylko jeśli nowa wartość
+            if (newQuantity.HasValue)
+                fields[1] = newQuantity.Value.ToString(CultureInfo.InvariantCulture);
+
+            // Field 3: Price - tylko jeśli nowa wartość
+            if (newPrice.HasValue)
+                fields[3] = newPrice.Value.ToString("F2", CultureInfo.InvariantCulture);
+
+            // Field 4: Validity - tylko jeśli nowa wartość
+            if (newValidity.HasValue)
+                fields[4] = GetOrderValidityString(newValidity.Value);
+
+            // Field 10: Client reference
+            if (!string.IsNullOrEmpty(clientReference))
+                fields[10] = clientReference;
+
+            // Field 12: Internal reference
+            if (!string.IsNullOrEmpty(internalReference))
+                fields[12] = internalReference;
+            else
+                fields[12] = GenerateOrderId(); // Fallback
+
+            // Field 17: Client Code Type
+            if (!string.IsNullOrEmpty(clientCodeType))
+                fields[17] = clientCodeType;
+
+            // Field 19: Allocation Code
+            if (!string.IsNullOrEmpty(allocationCode))
+                fields[19] = allocationCode;
+
+            // Field 81: Memo
+            if (!string.IsNullOrEmpty(memo))
+                fields[81] = memo;
+
+            // Field 106: GLID - MANDATORY
+            fields[106] = glid;
+
+            // Field 132: Clearing Account
+            if (!string.IsNullOrEmpty(clearingAccount))
+                fields[132] = clearingAccount;
+
+            // === SEKWENCYJNE WYPEŁNIANIE BITMAPY ===
+            int maxFieldNumber = fields.Keys.Max();
+            Debug.WriteLine($"[SLE] MODIFY - Max field number: {maxFieldNumber}");
+
+            var bitmapFields = new List<byte>();
+
+            for (int i = 0; i <= maxFieldNumber; i++)
+            {
+                if (fields.ContainsKey(i))
+                {
+                    byte[] encoded = EncodeField(fields[i]);
+                    bitmapFields.AddRange(encoded);
+
+                    if (i == 13 || i == 1 || i == 3 || i == 4)
+                        Debug.WriteLine($"[SLE] MODIFY Field #{i}: [{fields[i]}]");
+                }
+                else
+                {
+                    bitmapFields.Add(32); // GL 0
+                }
+            }
+
+            dataBuilder.AddRange(bitmapFields);
+
+            var dataPayload = dataBuilder.ToArray();
+            return BuildMessage(dataPayload, 2000);
+        }
+
+        private byte[] BuildCancelOrderRequest(
+            string exchangeNumber,
+            string localCode,
+            string glid,
+            string clientReference,
+            string internalReference)
+        {
+            var dataBuilder = new List<byte>();
+
+            // User Number (B) - 5 ASCII digits
+            string userStr = _userNumber.PadLeft(5, '0');
+            dataBuilder.AddRange(Encoding.ASCII.GetBytes(userStr));
+
+            // Request Category (C) - 1 ASCII char - 'O' = Simple order
+            dataBuilder.Add((byte)'O');
+
+            // Command (D1) - 1 ASCII digit - '1' = Cancel order
+            dataBuilder.Add((byte)'1');
+
+            // Stockcode (G) - GL encoded (LocalCode/ISIN)
+            byte[] stockcodeEncoded = EncodeField(localCode);
+            dataBuilder.AddRange(stockcodeEncoded);
+
+            // Filler - 10 bytes
+            for (int i = 0; i < 10; i++)
+                dataBuilder.Add(32);
+
+            // === BITMAP ===
+            var fields = new Dictionary<int, string>();
+
+            // Field 13: Exchange number - MANDATORY dla cancelowania!
+            fields[13] = exchangeNumber;
+
+            // Field 10: Client reference
+            if (!string.IsNullOrEmpty(clientReference))
+                fields[10] = clientReference;
+
+            // Field 12: Internal reference
+            if (!string.IsNullOrEmpty(internalReference))
+                fields[12] = internalReference;
+            else
+                fields[12] = GenerateOrderId();
+
+            // Field 106: GLID - MANDATORY
+            fields[106] = glid;
+
+            // === SEKWENCYJNE WYPEŁNIANIE BITMAPY ===
+            int maxFieldNumber = fields.Keys.Max();
+            Debug.WriteLine($"[SLE] CANCEL - Max field number: {maxFieldNumber}");
+
+            var bitmapFields = new List<byte>();
+
+            for (int i = 0; i <= maxFieldNumber; i++)
+            {
+                if (fields.ContainsKey(i))
+                {
+                    byte[] encoded = EncodeField(fields[i]);
+                    bitmapFields.AddRange(encoded);
+
+                    if (i == 13 || i == 106)
+                        Debug.WriteLine($"[SLE] CANCEL Field #{i}: [{fields[i]}]");
+                }
+                else
+                {
+                    bitmapFields.Add(32); // GL 0
+                }
+            }
+
+            dataBuilder.AddRange(bitmapFields);
+
+            var dataPayload = dataBuilder.ToArray();
+            return BuildMessage(dataPayload, 2000);
+        }
 
         #endregion
     }

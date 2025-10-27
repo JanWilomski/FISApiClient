@@ -75,6 +75,7 @@ namespace FISApiClient.ViewModels
         public RelayCommand RefreshCommand { get; }
         public RelayCommand CancelOrderCommand { get; }
         public RelayCommand ClearAllCommand { get; }
+        public RelayCommand ModifyOrderCommand { get; }
 
         #endregion
 
@@ -88,19 +89,26 @@ namespace FISApiClient.ViewModels
                 async _ => await RefreshOrderBook(), 
                 _ => !IsLoading && _sleService.IsConnected
             );
-    
-            CancelOrderCommand = new RelayCommand(
-                _ => CancelSelectedOrder(), 
-                _ => SelectedOrder != null
+
+            // ZAKTUALIZUJ - zmień metodę na OpenModifyOrderWindow
+            ModifyOrderCommand = new RelayCommand(
+                _ => OpenModifyOrderWindow(),
+                _ => SelectedOrder != null && !string.IsNullOrEmpty(SelectedOrder.ExchangeNumber)
             );
-    
+
+            // ZAKTUALIZUJ - zmień metodę na OpenCancelOrderWindow
+            CancelOrderCommand = new RelayCommand(
+                _ => OpenCancelOrderWindow(), 
+                _ => SelectedOrder != null && !string.IsNullOrEmpty(SelectedOrder.ExchangeNumber)
+            );
+
             ClearAllCommand = new RelayCommand(_ => ClearOrders());
 
             _sleService.OrderBookReceived += OnOrderBookReceived;
             _sleService.OrderUpdated += OnOrderUpdated;
 
-            System.Diagnostics.Debug.WriteLine("[OrderBookVM] ViewModel initialized");
-    
+            System.Diagnostics.Debug.WriteLine("[OrderBookVM] ViewModel initialized with Modify/Cancel support");
+
             IsRealTimeActive = _sleService.IsConnected;
             if (IsRealTimeActive)
             {
@@ -310,6 +318,58 @@ namespace FISApiClient.ViewModels
             
             _sleService.OrderBookReceived -= OnOrderBookReceived;
             _sleService.OrderUpdated -= OnOrderUpdated;
+        }
+
+        #endregion
+        
+        #region Order Actions
+
+        private void OpenModifyOrderWindow()
+        {
+            if (SelectedOrder == null)
+                return;
+
+            if (string.IsNullOrEmpty(SelectedOrder.ExchangeNumber))
+            {
+                MessageBox.Show(
+                    "Nie można zmodyfikować zlecenia - brak Exchange Number.\n" +
+                    "Zlecenie musi być najpierw zaakceptowane przez giełdę.",
+                    "Informacja",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information
+                );
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Opening modify window for order: {SelectedOrder.OrderId}");
+
+            var modifyWindow = new Views.ModifyOrderWindow(SelectedOrder, _sleService);
+            modifyWindow.Owner = Application.Current.MainWindow;
+            modifyWindow.ShowDialog();
+        }
+
+        private void OpenCancelOrderWindow()
+        {
+            if (SelectedOrder == null)
+                return;
+
+            if (string.IsNullOrEmpty(SelectedOrder.ExchangeNumber))
+            {
+                MessageBox.Show(
+                    "Nie można anulować zlecenia - brak Exchange Number.\n" +
+                    "Zlecenie musi być najpierw zaakceptowane przez giełdę.",
+                    "Informacja",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information
+                );
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Opening cancel window for order: {SelectedOrder.OrderId}");
+
+            var cancelWindow = new Views.CancelOrderWindow(SelectedOrder, _sleService);
+            cancelWindow.Owner = Application.Current.MainWindow;
+            cancelWindow.ShowDialog();
         }
 
         #endregion

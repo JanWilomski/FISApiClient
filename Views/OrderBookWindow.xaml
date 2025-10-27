@@ -18,6 +18,7 @@
         <local:SideConverter x:Key="SideConverter"/>
         <local:ModalityConverter x:Key="ModalityConverter"/>
         <local:ValidityConverter x:Key="ValidityConverter"/>
+
         
         <!-- Style dla nagłówków DataGrid -->
         <Style x:Key="DataGridHeaderStyle" TargetType="DataGridColumnHeader">
@@ -52,53 +53,48 @@
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         </Style>
 
-        <!-- Converter dla Side (Buy/Sell) -->
+        <!-- Style dla Side -->
         <Style x:Key="SideCellStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Side}" Value="0">
-                    <Setter Property="Foreground" Value="#4CAF50"/>
-                    <Setter Property="FontWeight" Value="Bold"/>
+                <DataTrigger Binding="{Binding Side}" Value="Buy">
+                    <Setter Property="Foreground" Value="#27AE60"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding Side}" Value="1">
-                    <Setter Property="Foreground" Value="#F44336"/>
-                    <Setter Property="FontWeight" Value="Bold"/>
+                <DataTrigger Binding="{Binding Side}" Value="Sell">
+                    <Setter Property="Foreground" Value="#E74C3C"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
         <!-- Style dla Status -->
         <Style x:Key="StatusCellStyle" TargetType="TextBlock">
-            <Setter Property="Padding" Value="8,4"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="TextAlignment" Value="Center"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Status}" Value="A">
-                    <Setter Property="Foreground" Value="#4CAF50"/>
-                    <Setter Property="Text" Value="✓ Accepted"/>
+                <DataTrigger Binding="{Binding Status}" Value="New">
+                    <Setter Property="Text" Value="NEW"/>
+                    <Setter Property="Foreground" Value="#3498DB"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding Status}" Value="C">
-                    <Setter Property="Foreground" Value="#F44336"/>
-                    <Setter Property="Text" Value="✗ Rejected"/>
+                <DataTrigger Binding="{Binding Status}" Value="PartiallyFilled">
+                    <Setter Property="Text" Value="PARTIAL"/>
+                    <Setter Property="Foreground" Value="#F39C12"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding Status}" Value="E">
-                    <Setter Property="Foreground" Value="#2196F3"/>
-                    <Setter Property="Text" Value="✓ Executed"/>
+                <DataTrigger Binding="{Binding Status}" Value="Filled">
+                    <Setter Property="Text" Value="FILLED"/>
+                    <Setter Property="Foreground" Value="#27AE60"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding Status}" Value="P">
-                    <Setter Property="Foreground" Value="#FF9800"/>
-                    <Setter Property="Text" Value="⟳ Partial"/>
+                <DataTrigger Binding="{Binding Status}" Value="Cancelled">
+                    <Setter Property="Text" Value="CANCELLED"/>
+                    <Setter Property="Foreground" Value="#95A5A6"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding Status}" Value="X">
-                    <Setter Property="Foreground" Value="#9E9E9E"/>
-                    <Setter Property="Text" Value="✗ Cancelled"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Status}" Value="W">
-                    <Setter Property="Foreground" Value="#03A9F4"/>
-                    <Setter Property="Text" Value="⟳ Working"/>
+                <DataTrigger Binding="{Binding Status}" Value="Rejected">
+                    <Setter Property="Text" Value="REJECTED"/>
+                    <Setter Property="Foreground" Value="#E74C3C"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <!-- Style dla wyrównania tekstów -->
         <Style x:Key="CenterAlignedTextBlockStyle" TargetType="TextBlock">
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -220,11 +216,44 @@
                       AlternatingRowBackground="#FAFAFA"
                       RowHeight="35">
 
+                <!-- CONTEXT MENU -->
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="📝 Modyfikuj zlecenie" 
+                                  Command="{Binding ModifyOrderCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="📝" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        
+                        <MenuItem Header="🗑️ Anuluj zlecenie" 
+                                  Command="{Binding CancelOrderCommand}">
+                            <MenuItem.Icon>
+                                <TextBlock Text="🗑️" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        
+                        <Separator/>
+                        
+                        <MenuItem Header="ℹ️ Pokaż Exchange Number" IsEnabled="False">
+                            <MenuItem.Icon>
+                                <TextBlock Text="ℹ️" FontSize="14"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+
                 <DataGrid.Columns>
                     <!-- Order ID -->
                     <DataGridTextColumn Header="Order ID" 
                                         Binding="{Binding OrderId}" 
                                         Width="120"
+                                        ElementStyle="{StaticResource CenterAlignedTextBlockStyle}"/>
+
+                    <!-- Exchange Number - WAŻNE! -->
+                    <DataGridTextColumn Header="Exchange #" 
+                                        Binding="{Binding ExchangeNumber}" 
+                                        Width="100"
                                         ElementStyle="{StaticResource CenterAlignedTextBlockStyle}"/>
 
                     <!-- SLE Reference -->
