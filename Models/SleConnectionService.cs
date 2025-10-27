@@ -895,14 +895,28 @@ namespace FISApiClient.Models
         /// </summary>
         private (string value, int bytesRead) DecodeGLField(byte[] data, int startPos)
         {
+            // Sprawdź czy nie wykraczamy poza bufor
             if (startPos >= data.Length)
                 return (string.Empty, 0);
-            
+    
+            // Odczytaj długość pola (bajt - 32)
             int length = data[startPos] - 32;
-            
-            if (length <= 0 || startPos + 1 + length > data.Length)
+    
+            // KRYTYCZNA POPRAWKA: Puste pole (GL 0) zajmuje 1 bajt!
+            if (length == 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SLE] DecodeGLField at {startPos}: EMPTY (GL 0)");
+                return (string.Empty, 1);
+            }
+    
+            // Niepoprawna długość lub przekroczenie bufora
+            if (length < 0 || startPos + 1 + length > data.Length)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SLE] DecodeGLField at {startPos}: INVALID length={length}");
                 return (string.Empty, 0);
-            
+            }
+    
+            // Odczytaj wartość pola
             string value = Encoding.ASCII.GetString(data, startPos + 1, length);
             return (value, 1 + length);
         }
