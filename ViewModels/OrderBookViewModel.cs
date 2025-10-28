@@ -257,32 +257,28 @@ namespace FISApiClient.ViewModels
 
         #region Event Handlers
 
-        private void OnOrderBookReceived(System.Collections.Generic.List<Order> orders)
+        private void OnOrderBookReceived(List<Order> orders)
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Received {orders.Count} orders");
-
+                    System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Received order book with {orders.Count} orders");
+            
+                    if (!orders.Any())
+                    {
+                        IsLoading = false;
+                        StatusMessage = "✓ Brak zleceń | Real-Time aktywny";
+                        return;
+                    }
+            
                     foreach (var order in orders)
                     {
-                        var existingOrder = Orders.FirstOrDefault(o =>
-                            (!string.IsNullOrEmpty(order.OrderId) && o.OrderId == order.OrderId) ||
-                            (!string.IsNullOrEmpty(order.SleReference) && o.SleReference == order.SleReference)
-                        );
-
-                        if (existingOrder != null)
-                        {
-                            UpdateOrderProperties(existingOrder, order);
-                            System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Updated existing order: {order.OrderId}");
-                        }
-                        else
-                        {
-                            order.Instrument = GetInstrumentDisplayName(order.Instrument);
-                            Orders.Add(order);
-                            System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Added new order: {order.OrderId}");
-                        }
+                        // ZAMIEŃ TYLKO Instrument (display), LocalCode zostaje oryginalny
+                        order.Instrument = GetInstrumentDisplayName(order.LocalCode);
+                
+                        Orders.Add(order);
+                        System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Added order: {order.OrderId}, LocalCode: {order.LocalCode}, Display: {order.Instrument}");
                     }
 
                     UpdateCount++;
@@ -303,8 +299,10 @@ namespace FISApiClient.ViewModels
             {
                 try
                 {
-                    updatedOrder.Instrument = GetInstrumentDisplayName(updatedOrder.Instrument);
                     System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Real-time update for order: {updatedOrder.OrderId}");
+
+                    // ZAMIEŃ TYLKO Instrument (display), LocalCode zostaje oryginalny
+                    updatedOrder.Instrument = GetInstrumentDisplayName(updatedOrder.LocalCode);
 
                     var existingOrder = Orders.FirstOrDefault(o =>
                         (!string.IsNullOrEmpty(updatedOrder.OrderId) && o.OrderId == updatedOrder.OrderId) ||
@@ -338,6 +336,8 @@ namespace FISApiClient.ViewModels
                 target.OrderId = source.OrderId;
             if (!string.IsNullOrEmpty(source.SleReference))
                 target.SleReference = source.SleReference;
+            if (!string.IsNullOrEmpty(source.LocalCode))
+                target.LocalCode = source.LocalCode; 
             if (!string.IsNullOrEmpty(source.Instrument))
                 target.Instrument = source.Instrument;
             if (source.Side != OrderSide.Unknown)

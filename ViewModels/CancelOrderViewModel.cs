@@ -112,7 +112,7 @@ namespace FISApiClient.ViewModels
                 // Send cancel request
                 bool success = await _sleService.CancelOrder(
                     _order.ExchangeNumber,
-                    _order.Instrument, // LocalCode
+                    _order.LocalCode, // LocalCode
                     _order.GLID,
                     _order.ClientReference,
                     _order.InternalReference

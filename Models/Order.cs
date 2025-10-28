@@ -43,6 +43,13 @@ namespace FISApiClient.Models
             get => _sleReference;
             set => SetProperty(ref _sleReference, value);
         }
+        
+        private string _localCode = string.Empty;
+        public string LocalCode
+        {
+            get => _localCode;
+            set => SetProperty(ref _localCode, value);
+        }
 
         private string _instrument = string.Empty;
         public string Instrument

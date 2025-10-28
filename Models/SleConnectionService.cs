@@ -1156,6 +1156,7 @@ namespace FISApiClient.Models
             try
             {
                 var order = new Order();
+                order.LocalCode = stockcode;
                 order.Instrument = stockcode;
                 
                 int pos = startPos;
@@ -1453,6 +1454,7 @@ namespace FISApiClient.Models
             try
             {
                 var order = new Order();
+                order.LocalCode = stockcode;
                 order.Instrument = stockcode;
                 
                 MapBitmapToOrder(order, bitmapFields);

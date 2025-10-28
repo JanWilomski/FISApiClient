@@ -180,7 +180,7 @@ namespace FISApiClient.ViewModels
                 // Send modify request
                 bool success = await _sleService.ModifyOrder(
                     _order.ExchangeNumber,
-                    _order.Instrument, // LocalCode
+                    _order.LocalCode, // LocalCode
                     _order.GLID,
                     newQty,
                     newPrice,
