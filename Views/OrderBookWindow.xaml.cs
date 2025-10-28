@@ -1,5 +1,6 @@
 using System.Windows;
 using FISApiClient.Models;
+using FISApiClient.Services;
 using FISApiClient.ViewModels;
 
 namespace FISApiClient.Views
@@ -11,10 +12,12 @@ namespace FISApiClient.Views
     {
         private OrderBookViewModel? _viewModel;
 
+        private InstrumentCacheService? _cacheService;
+
         public OrderBookWindow(SleConnectionService sleService)
         {
             InitializeComponent();
-            
+    
             _viewModel = new OrderBookViewModel(sleService);
             DataContext = _viewModel;
 

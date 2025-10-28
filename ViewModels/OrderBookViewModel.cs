@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using FISApiClient.Helpers;
 using FISApiClient.Models;
+using FISApiClient.Services;
 
 namespace FISApiClient.ViewModels
 {
@@ -15,6 +18,9 @@ namespace FISApiClient.ViewModels
         #region Properties
 
         private ObservableCollection<Order> _orders = new ObservableCollection<Order>();
+        
+        private readonly InstrumentCacheService _cacheService;
+        private Dictionary<string, Instrument> _localCodeToInstrumentMap = new();
         public ObservableCollection<Order> Orders
         {
             get => _orders;
@@ -84,6 +90,7 @@ namespace FISApiClient.ViewModels
         public OrderBookViewModel(SleConnectionService sleService)
         {
             _sleService = sleService;
+            _cacheService = new InstrumentCacheService();
 
             RefreshCommand = new RelayCommand(
                 async _ => await RefreshOrderBook(), 
@@ -114,6 +121,8 @@ namespace FISApiClient.ViewModels
             {
                 StatusMessage = "✓ Real-Time aktywny | Kliknij 'Odśwież' aby pobrać zlecenia";
             }
+            
+            LoadInstrumentMapping();
         }
 
         #endregion
@@ -190,6 +199,52 @@ namespace FISApiClient.ViewModels
                 );
             }
         }
+        
+        private async void LoadInstrumentMapping()
+        {
+            try
+            {
+                // Spróbuj załadować z cache
+                var cacheData = await _cacheService.LoadCacheAsync();
+        
+                if (cacheData.HasValue)
+                {
+                    _localCodeToInstrumentMap = _cacheService.GetLocalCodeToInstrumentMap(
+                        cacheData.Value.instruments);
+            
+                    Debug.WriteLine($"[OrderBookVM] Loaded {_localCodeToInstrumentMap.Count} instrument mappings from cache");
+                }
+                else
+                {
+                    Debug.WriteLine($"[OrderBookVM] No instrument cache available");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OrderBookVM] Error loading instrument mapping: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Zamienia LocalCode na Symbol (Name) dla wyświetlania
+        /// </summary>
+        private string GetInstrumentDisplayName(string localCode)
+        {
+            if (string.IsNullOrEmpty(localCode))
+                return localCode;
+        
+            if (_localCodeToInstrumentMap.TryGetValue(localCode, out var instrument))
+            {
+                // Zwróć "Symbol (Name)" lub tylko Symbol jeśli Name jest pusty
+                if (!string.IsNullOrEmpty(instrument.Name))
+                    return $"{instrument.Symbol} ({instrument.Name})";
+                else
+                    return instrument.Symbol;
+            }
+    
+            // Jeśli nie znaleziono w mapie, zwróć oryginalny LocalCode
+            return localCode;
+        }
 
         private void ClearOrders()
         {
@@ -224,6 +279,7 @@ namespace FISApiClient.ViewModels
                         }
                         else
                         {
+                            order.Instrument = GetInstrumentDisplayName(order.Instrument);
                             Orders.Add(order);
                             System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Added new order: {order.OrderId}");
                         }
@@ -247,6 +303,7 @@ namespace FISApiClient.ViewModels
             {
                 try
                 {
+                    updatedOrder.Instrument = GetInstrumentDisplayName(updatedOrder.Instrument);
                     System.Diagnostics.Debug.WriteLine($"[OrderBookVM] Real-time update for order: {updatedOrder.OrderId}");
 
                     var existingOrder = Orders.FirstOrDefault(o =>

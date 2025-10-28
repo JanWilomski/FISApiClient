@@ -221,6 +221,8 @@ namespace FISApiClient.Services
                 }
             });
         }
+        
+        
 
         /// <summary>
         /// Ręcznie usuwa dzisiejszy cache (do wymuszenia odświeżenia)
@@ -241,6 +243,41 @@ namespace FISApiClient.Services
                 Debug.WriteLine($"[Cache] Error clearing cache: {ex.Message}");
             }
         }
+        
+        /// <summary>
+        /// Zwraca słownik mapujący LocalCode -> Instrument dla szybkiego wyszukiwania
+        /// </summary>
+        public Dictionary<string, Instrument> GetLocalCodeToInstrumentMap(List<Instrument> instruments)
+        {
+            var map = new Dictionary<string, Instrument>(StringComparer.OrdinalIgnoreCase);
+    
+            foreach (var instrument in instruments)
+            {
+                if (!string.IsNullOrEmpty(instrument.LocalCode))
+                {
+                    // Jeśli jest duplikat, zachowaj pierwszy
+                    if (!map.ContainsKey(instrument.LocalCode))
+                    {
+                        map[instrument.LocalCode] = instrument;
+                    }
+                }
+            }
+    
+            Debug.WriteLine($"[Cache] Created LocalCode map with {map.Count} entries");
+            return map;
+        }
+
+        /// <summary>
+        /// Znajduje instrument po LocalCode
+        /// </summary>
+        public Instrument? FindInstrumentByLocalCode(List<Instrument> instruments, string localCode)
+        {
+            if (string.IsNullOrEmpty(localCode))
+                return null;
+        
+            return instruments.FirstOrDefault(i => 
+                string.Equals(i.LocalCode, localCode, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     /// <summary>
@@ -252,4 +289,6 @@ namespace FISApiClient.Services
         public List<Instrument> Instruments { get; set; } = new();
         public List<InstrumentDetails> InstrumentDetails { get; set; } = new();
     }
+    
+    
 }
