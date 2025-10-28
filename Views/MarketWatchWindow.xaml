@@ -248,7 +248,8 @@
                      ItemsSource="{Binding WatchedInstruments}"
                      SelectedItem="{Binding SelectedInstrument}"
                      Style="{StaticResource MarketWatchDataGrid}"
-                     IsReadOnly="True">
+                     IsReadOnly="True"
+                     MouseDoubleClick="DataGrid_MouseDoubleClick">
                 
                 <DataGrid.Columns>
                     <!-- Symbol -->

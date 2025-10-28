@@ -13,6 +13,7 @@ namespace FISApiClient.ViewModels
     public class InstrumentListViewModel : ViewModelBase
     {
         private readonly MdsConnectionService _mdsService;
+        private readonly SleConnectionService _sleService;
         private readonly InstrumentCacheService _cacheService;
         private Views.MarketWatchWindow? _marketWatchWindow;
 
@@ -102,9 +103,10 @@ namespace FISApiClient.ViewModels
 
         #endregion
 
-        public InstrumentListViewModel(MdsConnectionService mdsService)
+        public InstrumentListViewModel(MdsConnectionService mdsService, SleConnectionService sleService)
         {
             _mdsService = mdsService;
+            _sleService = sleService;
             _cacheService = new InstrumentCacheService();
 
             LoadInstrumentsCommand = new RelayCommand(
@@ -389,7 +391,7 @@ namespace FISApiClient.ViewModels
             if (_marketWatchWindow == null || !_marketWatchWindow.IsLoaded)
             {
                 var viewModel = new MarketWatchViewModel(_mdsService);
-                _marketWatchWindow = new Views.MarketWatchWindow(viewModel);
+                _marketWatchWindow = new Views.MarketWatchWindow(viewModel, _mdsService, _sleService);  // ZMIEŃ TĘ LINIĘ
                 _marketWatchWindow.Closed += (s, e) => _marketWatchWindow = null;
                 _marketWatchWindow.Show();
             }

@@ -18,7 +18,7 @@ namespace FISApiClient.Views
             _mdsService = mdsService;
             _sleService = sleService;
             _navigationService = new NavigationService();
-            DataContext = new InstrumentListViewModel(mdsService);
+            DataContext = new InstrumentListViewModel(mdsService, sleService);
         }
 
         private void DataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
