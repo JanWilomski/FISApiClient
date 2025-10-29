@@ -528,7 +528,7 @@ namespace FISApiClient.Models
             {
                 OrderValidity.Day => "J",
                 OrderValidity.FOK => "K",
-                OrderValidity.IOC => "I",
+                OrderValidity.IOC => "E",
                 OrderValidity.GTC => "G",
                 _ => ""
             };

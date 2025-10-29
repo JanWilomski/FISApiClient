@@ -244,7 +244,7 @@
                                         <!-- Side -->
                                         <StackPanel Grid.Row="0" Grid.Column="0">
                                             <TextBlock Text="Kierunek:" FontSize="11" Foreground="#666666" Margin="0,0,0,5"/>
-                                            <ComboBox SelectedValue="{Binding Side}" FontSize="12" Padding="8,6">
+                                            <ComboBox SelectedValue="{Binding Side}" SelectedValuePath="Tag" FontSize="12" Padding="8,6">
                                                 <ComboBoxItem Content="Kupno" Tag="Buy"/>
                                                 <ComboBoxItem Content="Sprzedaż" Tag="Sell"/>
                                             </ComboBox>
@@ -267,7 +267,7 @@
                                         <!-- Order Type -->
                                         <StackPanel Grid.Row="2" Grid.Column="2">
                                             <TextBlock Text="Typ zlecenia:" FontSize="11" Foreground="#666666" Margin="0,0,0,5"/>
-                                            <ComboBox SelectedValue="{Binding OrderType}" FontSize="12" Padding="8,6">
+                                            <ComboBox SelectedValue="{Binding OrderType}" SelectedValuePath="Tag" FontSize="12" Padding="8,6">
                                                 <ComboBoxItem Content="Limit" Tag="Limit"/>
                                                 <ComboBoxItem Content="Market" Tag="Market"/>
                                             </ComboBox>
@@ -278,22 +278,54 @@
 
                             <!-- Strategy Parameters Section -->
                             <Border Background="#E3F2FD" 
-                                   CornerRadius="6" 
-                                   Padding="15"
-                                   Margin="0,0,0,20">
+                                    CornerRadius="6" 
+                                    Padding="15"
+                                    Margin="0,0,0,20">
                                 <StackPanel>
                                     <TextBlock Text="PARAMETRY STRATEGII" 
-                                              FontSize="12" 
-                                              FontWeight="Bold"
-                                              Foreground="#1976D2"
-                                              Margin="0,0,0,12"/>
+                                               FontSize="12" 
+                                               FontWeight="Bold"
+                                               Foreground="#1976D2"
+                                               Margin="0,0,0,12"/>
 
-                                    <!-- Dynamic parameters will be added here based on strategy -->
-                                    <TextBlock Text="Parametry strategii będą dostępne po implementacji konkretnych algorytmów." 
-                                              FontSize="12" 
-                                              Foreground="#666666"
-                                              FontStyle="Italic"
-                                              TextWrapping="Wrap"/>
+                                    <!-- POV Strategy Parameters -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedStrategy.Id}" Value="pov">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <TextBlock Text="Udział w wolumenie (%):" 
+                                                   FontSize="11" 
+                                                   Foreground="#666666" 
+                                                   Margin="0,0,0,5"/>
+                                        <TextBox Text="{Binding ParticipationRate, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource ParamTextBox}"/>
+                                    </StackPanel>
+
+                                    <!-- Placeholder for other strategies -->
+                                    <TextBlock FontSize="12" 
+                                               Foreground="#666666"
+                                               FontStyle="Italic"
+                                               TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedStrategy.Id}" Value="pov">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                        <Run Text="Brak dodatkowych parametrów dla wybranej strategii."/>
+                                    </TextBlock>
                                 </StackPanel>
                             </Border>
 

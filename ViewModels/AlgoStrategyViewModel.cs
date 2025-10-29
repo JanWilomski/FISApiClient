@@ -1,17 +1,25 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
+using FISApiClient.Helpers;
 using FISApiClient.Models;
+using FISApiClient.Services; // Added for Manager Service
+using FISApiClient.Trading.Strategies;
 
 namespace FISApiClient.ViewModels
 {
-    public class AlgoStrategyViewModel : INotifyPropertyChanged
+    public class AlgoStrategyViewModel : ViewModelBase
     {
         private readonly Instrument _instrument;
         private readonly MdsConnectionService _mdsService;
         private readonly SleConnectionService _sleService;
+        private readonly FisOrderParametersProvider _fisParamsProvider;
+        private IAlgoStrategy? _activeStrategy;
+        private CancellationTokenSource? _cts;
 
         private AlgoStrategyInfo? _selectedStrategy;
         private string _side = "Buy";
@@ -19,16 +27,23 @@ namespace FISApiClient.ViewModels
         private string _limitPrice = "";
         private string _orderType = "Limit";
 
+        private string _participationRate = "20";
+        public string ParticipationRate
+        {
+            get => _participationRate;
+            set => SetProperty(ref _participationRate, value);
+        }
+
         public AlgoStrategyViewModel(Instrument instrument, MdsConnectionService mdsService, SleConnectionService sleService)
         {
             _instrument = instrument;
             _mdsService = mdsService;
             _sleService = sleService;
+            _fisParamsProvider = new FisOrderParametersProvider();
 
             InitializeAvailableStrategies();
             InitializeCommands();
 
-            // Leave price empty - user will enter it manually
             _limitPrice = "";
         }
 
@@ -41,10 +56,8 @@ namespace FISApiClient.ViewModels
             get => _selectedStrategy;
             set
             {
-                if (_selectedStrategy != value)
+                if (SetProperty(ref _selectedStrategy, value))
                 {
-                    _selectedStrategy = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(HasSelectedStrategy));
                     OnPropertyChanged(nameof(HasNoSelectedStrategy));
                     OnPropertyChanged(nameof(CanStartStrategy));
@@ -54,60 +67,32 @@ namespace FISApiClient.ViewModels
 
         public bool HasSelectedStrategy => SelectedStrategy != null;
         public bool HasNoSelectedStrategy => SelectedStrategy == null;
-        public bool CanStartStrategy => SelectedStrategy != null;
+        public bool CanStartStrategy => SelectedStrategy != null && _activeStrategy == null;
 
         public string InstrumentInfo => $"{_instrument.Symbol} ({_instrument.Name}) - ISIN: {_instrument.ISIN}";
 
         public string Side
         {
             get => _side;
-            set
-            {
-                if (_side != value)
-                {
-                    _side = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _side, value);
         }
 
         public string TotalQuantity
         {
             get => _totalQuantity;
-            set
-            {
-                if (_totalQuantity != value)
-                {
-                    _totalQuantity = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _totalQuantity, value);
         }
 
         public string LimitPrice
         {
             get => _limitPrice;
-            set
-            {
-                if (_limitPrice != value)
-                {
-                    _limitPrice = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _limitPrice, value);
         }
 
         public string OrderType
         {
             get => _orderType;
-            set
-            {
-                if (_orderType != value)
-                {
-                    _orderType = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _orderType, value);
         }
 
         #endregion
@@ -119,39 +104,166 @@ namespace FISApiClient.ViewModels
 
         private void InitializeCommands()
         {
-            StartStrategyCommand = new RelayCommand(ExecuteStartStrategy, CanExecuteStartStrategy);
+            StartStrategyCommand = new RelayCommand(async _ => await ExecuteStartStrategy(), _ => CanExecuteStartStrategy(null));
             CancelCommand = new RelayCommand(ExecuteCancel);
         }
 
         private bool CanExecuteStartStrategy(object? parameter)
         {
-            return SelectedStrategy != null;
+            return SelectedStrategy != null && _activeStrategy == null;
         }
 
-        private void ExecuteStartStrategy(object? parameter)
+        private async Task ExecuteStartStrategy()
         {
-            if (SelectedStrategy == null)
+            if (SelectedStrategy == null) return;
+
+            // 1. Validate Parameters
+            if (!long.TryParse(TotalQuantity, out var totalQuantity) || totalQuantity <= 0)
+            {
+                MessageBox.Show("Całkowita ilość musi być dodatnią liczbą.", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
+            }
 
-            // TODO: Implement strategy execution
-            // For now, just show a message
-            System.Windows.MessageBox.Show(
-                $"Uruchamianie strategii: {SelectedStrategy.Name}\n\n" +
-                $"Instrument: {_instrument.Symbol}\n" +
-                $"Kierunek: {Side}\n" +
-                $"Całkowita ilość: {TotalQuantity}\n" +
-                $"Cena limit: {LimitPrice}\n\n" +
-                $"Funkcjonalność będzie dostępna po implementacji strategii.",
-                "Strategia Algo",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Information);
+            if (!Enum.TryParse<OrderSide>(Side, true, out var orderSide))
+            {
+                MessageBox.Show("Nieprawidłowy kierunek zlecenia.", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
+            decimal? limitPrice = null;
+            if (OrderType == "Limit")
+            {
+                if (!decimal.TryParse(LimitPrice, out var price) || price <= 0)
+                {
+                    MessageBox.Show("Cena limit musi być dodatnią liczbą dla zlecenia typu Limit.", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                limitPrice = price;
+            }
+
+            // 2. Create Strategy Instance
+            var orderParams = new AlgoOrderParams
+            {
+                Instrument = _instrument,
+                Side = orderSide,
+                TotalQuantity = totalQuantity,
+                LimitPrice = limitPrice,
+                OrderType = OrderType == "Limit" ? OrderModality.Limit : OrderModality.Market,
+            };
+            
+            // *** Crucial: Use the centralized provider for FIS params ***
+            _fisParamsProvider.PopulateAlgoOrderParams(orderParams);
+
+
+            switch (SelectedStrategy.Id)
+            {
+                case "pov":
+                    if (!double.TryParse(ParticipationRate, out var rate) || rate <= 0 || rate > 100)
+                    {
+                        MessageBox.Show("Udział w wolumenie musi być liczbą z zakresu (0, 100].", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                    _activeStrategy = new ParticipationOfVolumeStrategy(_sleService, _mdsService, orderParams);
+                    _activeStrategy.Initialize(new Dictionary<string, object> { { "ParticipationRate", rate } });
+                    break;
+                default:
+                    MessageBox.Show($"Strategia '{SelectedStrategy.Name}' nie jest jeszcze zaimplementowana.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+            }
+
+            // 3. Validate and Start Strategy
+            if (!_activeStrategy.ValidateParameters(out var errorMessage))
+            {
+                MessageBox.Show($"Błąd parametrów strategii: {errorMessage}", "Błąd walidacji", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _activeStrategy = null;
+                return;
+            }
+
+            _activeStrategy.OrderRequested += OnStrategyOrderRequested;
+            _activeStrategy.StatusChanged += OnStrategyStatusChanged;
+
+            _cts = new CancellationTokenSource();
+            
+            // Register with the manager BEFORE starting
+            AlgoStrategyManagerService.Instance.Register(_activeStrategy);
+            
+            await _activeStrategy.StartAsync(_cts.Token);
+
+            MessageBox.Show($"Strategia '{_activeStrategy.Name}' została uruchomiona.", "Strategia Aktywna", MessageBoxButton.OK, MessageBoxImage.Information);
             RequestClose?.Invoke();
+        }
+
+        private async void OnStrategyOrderRequested(object? sender, AlgoOrderRequest request)
+        {
+            try
+            {
+                await _sleService.SendOrderAsync(
+                    request.LocalCode,
+                    request.Glid,
+                    request.Side,
+                    request.Quantity,
+                    request.Modality,
+                    request.Price,
+                    request.Validity,
+                    request.ClientReference,
+                    "", // contraFirm
+                    request.ClientCodeType,
+                    request.ClearingAccount,
+                    request.AllocationCode,
+                    request.Memo,
+                    request.SecondClientCodeType,
+                    request.FloorTraderId,
+                    request.ClientFreeField1,
+                    request.Currency
+                );
+            }
+            catch (Exception ex)
+            {
+                // Log error
+                System.Diagnostics.Debug.WriteLine($"[AlgoVM] Failed to send order from strategy: {ex.Message}");
+            }
+        }
+
+        private void OnStrategyStatusChanged(object? sender, AlgoStrategyStatus status)
+        {
+            if (status == AlgoStrategyStatus.Completed || status == AlgoStrategyStatus.Stopped || status == AlgoStrategyStatus.Error)
+            {
+                if (_activeStrategy != null)
+                {
+                    // The manager will handle unregistering, just clean up local state
+                    _activeStrategy.OrderRequested -= OnStrategyOrderRequested;
+                    _activeStrategy.StatusChanged -= OnStrategyStatusChanged;
+                    _activeStrategy = null;
+                }
+                _cts?.Dispose();
+                _cts = null;
+                
+                Application.Current.Dispatcher.Invoke(() => 
+                    ((RelayCommand)StartStrategyCommand).RaiseCanExecuteChanged()
+                );
+            }
         }
 
         private void ExecuteCancel(object? parameter)
         {
-            RequestClose?.Invoke();
+            if (_activeStrategy != null)
+            {
+                var result = MessageBox.Show(
+                    "Aktywna strategia jest uruchomiona. Czy na pewno chcesz ją zatrzymać i zamknąć okno?",
+                    "Potwierdzenie",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    _activeStrategy?.StopAsync(); // This will trigger status change and cleanup
+                    RequestClose?.Invoke();
+                }
+            }
+            else
+            {
+                RequestClose?.Invoke();
+            }
         }
 
         #endregion
@@ -237,13 +349,7 @@ namespace FISApiClient.ViewModels
 
         #region INotifyPropertyChanged
 
-        public event PropertyChangedEventHandler? PropertyChanged;
         public event Action? RequestClose;
-
-        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
 
         #endregion
     }

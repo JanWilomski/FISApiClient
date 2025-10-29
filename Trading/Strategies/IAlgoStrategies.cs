@@ -111,12 +111,18 @@ namespace FISApiClient.Trading.Strategies
         public long TotalQuantity { get; set; }
         public decimal? LimitPrice { get; set; }
         public OrderModality OrderType { get; set; }
-        
+        public OrderValidity Validity { get; set; }
+
         // FIS specific parameters
         public string ClearingAccount { get; set; } = string.Empty;
         public string ClientCodeType { get; set; } = string.Empty;
         public string AllocationCode { get; set; } = string.Empty;
         public string ClientReference { get; set; } = string.Empty;
+        public string Memo { get; set; } = string.Empty;
+        public string SecondClientCodeType { get; set; } = string.Empty;
+        public string FloorTraderId { get; set; } = string.Empty;
+        public string ClientFreeField1 { get; set; } = string.Empty;
+        public string Currency { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -131,10 +137,17 @@ namespace FISApiClient.Trading.Strategies
         public OrderModality Modality { get; set; }
         public decimal Price { get; set; }
         public OrderValidity Validity { get; set; }
+        
+        // FIS specific parameters
         public string ClientReference { get; set; } = string.Empty;
         public string ClearingAccount { get; set; } = string.Empty;
         public string ClientCodeType { get; set; } = string.Empty;
         public string AllocationCode { get; set; } = string.Empty;
+        public string Memo { get; set; } = string.Empty;
+        public string SecondClientCodeType { get; set; } = string.Empty;
+        public string FloorTraderId { get; set; } = string.Empty;
+        public string ClientFreeField1 { get; set; } = string.Empty;
+        public string Currency { get; set; } = string.Empty;
     }
 
     /// <summary>

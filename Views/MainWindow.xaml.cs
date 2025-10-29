@@ -47,5 +47,10 @@ namespace FISApiClient
                 _navigationService.ShowInstrumentListWindow(mdsService, sleService);
             }
         }
+
+        private void BtnAlgoMonitor_Click(object sender, RoutedEventArgs e)
+        {
+            _navigationService.ShowAlgoMonitorWindow();
+        }
     }
 }

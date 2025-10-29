@@ -369,17 +369,37 @@
             </Border>
         </Grid>
 
-        <!-- Show Instruments Button -->
-        <Button Grid.Row="2"
-               x:Name="BtnInstruments"
-               Content="📋 Lista instrumentów"
-               Click="BtnInstruments_Click"
-               IsEnabled="{Binding CanShowInstruments}"
-               Style="{StaticResource ShowInstrumentsButton}"
-               HorizontalAlignment="Center"
-               Width="250"
-               Height="38"
-               Margin="0,15,0,12"/>
+        <!-- Action Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,15,0,12">
+            <Button x:Name="BtnInstruments"
+                    Content="📋 Lista instrumentów"
+                    Click="BtnInstruments_Click"
+                    IsEnabled="{Binding CanShowInstruments}"
+                    Style="{StaticResource ShowInstrumentsButton}"
+                    Width="250"
+                    Height="38"/>
+
+            <Button x:Name="BtnAlgoMonitor"
+                    Content="🤖 Monitor Strategii"
+                    Click="BtnAlgoMonitor_Click"
+                    Width="200"
+                    Height="38"
+                    Margin="10,0,0,0">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource ShowInstrumentsButton}">
+                        <Setter Property="Background" Value="#FF9800"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#FB8C00"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#F57C00"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
 
         <!-- Status Bar -->
         <Border Grid.Row="3" 

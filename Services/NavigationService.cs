@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using System.Linq;
+using System.Windows;
 using FISApiClient.Models;
 using FISApiClient.Views;
 
@@ -33,6 +34,21 @@ namespace FISApiClient.Services
 
             var orderBookWindow = new OrderBookWindow(sleService);
             orderBookWindow.Show();
+        }
+
+        public void ShowAlgoMonitorWindow()
+        {
+            // This window can be opened once and reused
+            var existingWindow = Application.Current.Windows.OfType<AlgoMonitorWindow>().FirstOrDefault();
+            if (existingWindow != null)
+            {
+                existingWindow.Activate();
+            }
+            else
+            {
+                var monitorWindow = new AlgoMonitorWindow();
+                monitorWindow.Show();
+            }
         }
     }
 }
