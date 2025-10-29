@@ -3,15 +3,74 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using FISApiClient.Helpers;
 using FISApiClient.Models;
 
 namespace FISApiClient.Trading.Strategies
 {
-    public class ParticipationOfVolumeStrategy : IAlgoStrategy
+    public class ParticipationOfVolumeStrategy : ViewModelBase, IAlgoStrategy
     {
         public string StrategyId => "pov_participation";
         public string Name => "Participation of Volume";
-        public AlgoStrategyStatus Status { get; private set; }
+        
+        private AlgoStrategyStatus _status;
+        public AlgoStrategyStatus Status
+        {
+            get => _status;
+            set
+            {
+                if (SetProperty(ref _status, value))
+                {
+                    OnPropertyChangedOnUIThread(nameof(IsRunning));
+                    StatusChanged?.Invoke(this, value);
+                }
+            }
+        }
+
+        public bool IsRunning => Status == AlgoStrategyStatus.Running;
+
+        private DateTime? _startTime;
+        public DateTime? StartTime
+        {
+            get => _startTime;
+            private set => SetProperty(ref _startTime, value);
+        }
+
+        private DateTime? _lastUpdateTime;
+        public DateTime? LastUpdateTime
+        {
+            get => _lastUpdateTime;
+            private set => SetProperty(ref _lastUpdateTime, value);
+        }
+
+        private int _totalTrades;
+        public int TotalTrades
+        {
+            get => _totalTrades;
+            private set => SetProperty(ref _totalTrades, value);
+        }
+
+        private decimal _currentPnL;
+        public decimal CurrentPnL
+        {
+            get => _currentPnL;
+            private set => SetProperty(ref _currentPnL, value);
+        }
+
+        private string _progress = string.Empty;
+        public string Progress
+        {
+            get => _progress;
+            private set => SetProperty(ref _progress, value);
+        }
+
+        private string _detailedStatus = string.Empty;
+        public string DetailedStatus
+        {
+            get => _detailedStatus;
+            private set => SetProperty(ref _detailedStatus, value);
+        }
+
         public Dictionary<string, object> Parameters { get; private set; } = new();
         public AlgoOrderParams OrderParams { get; set; }
 
@@ -32,6 +91,8 @@ namespace FISApiClient.Trading.Strategies
             _sleService = sleService;
             _mdsService = mdsService;
             OrderParams = orderParams;
+            Status = AlgoStrategyStatus.Idle; // Initial status
+            DetailedStatus = "Ready";
         }
 
         public void Initialize(Dictionary<string, object> parameters)
@@ -57,8 +118,14 @@ namespace FISApiClient.Trading.Strategies
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            StartTime = DateTime.Now;
             Status = AlgoStrategyStatus.Running;
-            StatusChanged?.Invoke(this, Status);
+            DetailedStatus = "Running...";
+            TotalTrades = 0;
+            CurrentPnL = 0;
+            Progress = "0%";
+            _totalExecutedQuantity = 0;
+            _initialVolume = -1; // Reset initial volume
 
             _mdsService.InstrumentDetailsReceived += OnMarketDataUpdate;
             // Request initial details to get the starting volume
@@ -69,10 +136,38 @@ namespace FISApiClient.Trading.Strategies
 
         public Task StopAsync()
         {
+            if (Status == AlgoStrategyStatus.Stopped || Status == AlgoStrategyStatus.Completed || Status == AlgoStrategyStatus.Error) return Task.CompletedTask;
+
             Status = AlgoStrategyStatus.Stopped;
-            StatusChanged?.Invoke(this, Status);
+            DetailedStatus = "Stopped by user.";
             _mdsService.InstrumentDetailsReceived -= OnMarketDataUpdate;
             _cts?.Cancel();
+            _cts?.Dispose();
+            return Task.CompletedTask;
+        }
+
+        public Task PauseAsync()
+        {
+            if (Status != AlgoStrategyStatus.Running) return Task.CompletedTask;
+
+            Status = AlgoStrategyStatus.Paused;
+            DetailedStatus = "Paused by user.";
+            _mdsService.InstrumentDetailsReceived -= OnMarketDataUpdate;
+            _cts?.Cancel();
+            return Task.CompletedTask;
+        }
+
+        public Task ResumeAsync()
+        {
+            if (Status != AlgoStrategyStatus.Paused) return Task.CompletedTask;
+
+            _cts = new CancellationTokenSource(); // Create a new CTS for resuming
+            Status = AlgoStrategyStatus.Running;
+            DetailedStatus = "Resuming...";
+            _mdsService.InstrumentDetailsReceived += OnMarketDataUpdate;
+            // Request initial details to get the current market volume
+            _mdsService.RequestInstrumentDetails(OrderParams.Instrument.Glid + OrderParams.Instrument.Symbol);
+
             return Task.CompletedTask;
         }
 
@@ -81,10 +176,13 @@ namespace FISApiClient.Trading.Strategies
             if (Status != AlgoStrategyStatus.Running) return;
             if (marketData.GlidAndSymbol != OrderParams.Instrument.Glid + OrderParams.Instrument.Symbol) return;
 
+            LastUpdateTime = DateTime.Now;
+
             if (_initialVolume == -1)
             {
                 _initialVolume = marketData.Volume;
                 Debug.WriteLine($"[{Name}] Initial volume set to: {_initialVolume}");
+                DetailedStatus = $"Initial volume captured: {_initialVolume}";
                 return;
             }
 
@@ -130,24 +228,24 @@ namespace FISApiClient.Trading.Strategies
             OrderRequested?.Invoke(this, orderRequest);
 
             _totalExecutedQuantity += orderQuantity;
+            TotalTrades++;
+            Progress = $"{(_totalExecutedQuantity * 100.0 / OrderParams.TotalQuantity):F2}%";
+            DetailedStatus = $"Sent order for {orderQuantity} shares. Total executed: {_totalExecutedQuantity}";
             
             ProgressUpdated?.Invoke(this, new AlgoProgressUpdate
             {
                 ExecutedQuantity = _totalExecutedQuantity,
                 RemainingQuantity = OrderParams.TotalQuantity - _totalExecutedQuantity,
-                Message = $"Sent order for {orderQuantity} shares."
+                Message = DetailedStatus,
+                ProgressPercentage = _totalExecutedQuantity * 100.0 / OrderParams.TotalQuantity
             });
 
             if (_totalExecutedQuantity >= OrderParams.TotalQuantity)
             {
                 Status = AlgoStrategyStatus.Completed;
-                StatusChanged?.Invoke(this, Status);
+                DetailedStatus = "Strategy completed.";
                 StopAsync();
             }
         }
-
-        // Unimplemented methods
-        public Task PauseAsync() => Task.CompletedTask;
-        public Task ResumeAsync() => Task.CompletedTask;
     }
 }

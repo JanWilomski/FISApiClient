@@ -38,19 +38,14 @@ namespace FISApiClient
             }
         }
 
-        private void BtnInstruments_Click(object sender, RoutedEventArgs e)
+        private void BtnGeneralMenu_Click(object sender, RoutedEventArgs e)
         {
             if (DataContext is ConnectionViewModel viewModel)
             {
                 var mdsService = viewModel.GetMdsService();
                 var sleService = viewModel.GetSleService();
-                _navigationService.ShowInstrumentListWindow(mdsService, sleService);
+                _navigationService.ShowGeneralMenuWindow(mdsService, sleService);
             }
-        }
-
-        private void BtnAlgoMonitor_Click(object sender, RoutedEventArgs e)
-        {
-            _navigationService.ShowAlgoMonitorWindow();
         }
     }
 }

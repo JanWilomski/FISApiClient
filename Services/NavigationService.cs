@@ -1,12 +1,19 @@
 ﻿using System.Linq;
 using System.Windows;
 using FISApiClient.Models;
+using FISApiClient.ViewModels;
 using FISApiClient.Views;
 
 namespace FISApiClient.Services
 {
     public class NavigationService
     {
+        public void ShowGeneralMenuWindow(MdsConnectionService mdsService, SleConnectionService sleService)
+        {
+            var generalMenuWindow = new GeneralMenuWindow(mdsService, sleService);
+            generalMenuWindow.Show();
+        }
+
         public void ShowInstrumentListWindow(MdsConnectionService mdsService, SleConnectionService sleService)
         {
             var instrumentWindow = new InstrumentListWindow(mdsService, sleService);
@@ -17,6 +24,20 @@ namespace FISApiClient.Services
         {
             var detailsWindow = new InstrumentDetailsWindow(instrument, mdsService, sleService);
             detailsWindow.Show();
+        }
+
+        public void ShowMarketWatchWindow(MdsConnectionService mdsService, SleConnectionService sleService)
+        {
+            var existingWindow = Application.Current.Windows.OfType<MarketWatchWindow>().FirstOrDefault();
+            if (existingWindow != null)
+            {
+                existingWindow.Activate();
+            }
+            else
+            {
+                var marketWatchWindow = new MarketWatchWindow(new MarketWatchViewModel(mdsService), mdsService, sleService);
+                marketWatchWindow.Show();
+            }
         }
 
         public void ShowOrderBookWindow(SleConnectionService sleService)

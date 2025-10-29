@@ -22,6 +22,7 @@
                     <Border BorderBrush="#DDDDDD" BorderThickness="0,0,0,1" Padding="10">
                         <Grid>
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
@@ -31,20 +32,102 @@
                                     <Run Text="{Binding Name, Mode=OneWay}"/>
                                     <Run Text="-"/>
                                     <Run Text="{Binding OrderParams.Instrument.Symbol, Mode=OneWay}"/>
+                                    <Run Text="("/>
+                                    <Run Text="{Binding StrategyId, Mode=OneWay}"/>
+                                    <Run Text=")"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#666666">
                                     <Run Text="Status:"/>
                                     <Run Text="{Binding Status, Mode=OneWay}" FontWeight="SemiBold"/>
+                                    <Run Text=" - "/>
+                                    <Run Text="{Binding DetailedStatus, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock FontSize="11" Foreground="#888888">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="Start: {0:HH:mm:ss} | Last Update: {1:HH:mm:ss}">
+                                            <Binding Path="StartTime" Mode="OneWay"/>
+                                            <Binding Path="LastUpdateTime" Mode="OneWay"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
                                 </TextBlock>
                             </StackPanel>
 
-                            <Button Grid.Column="1"
-                                    Content="Zatrzymaj"
-                                    Command="{Binding DataContext.StopStrategyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                    CommandParameter="{Binding}"
-                                    Background="#E53935"
-                                    Foreground="White"
-                                    Padding="12,6"/>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0">
+                                <TextBlock FontSize="12" Foreground="#333333">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="Trades: {0} | PnL: {1:N2}">
+                                            <Binding Path="TotalTrades" Mode="OneWay"/>
+                                            <Binding Path="CurrentPnL" Mode="OneWay"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                                <TextBlock FontSize="12" Foreground="#333333" Text="{Binding Progress, Mode=OneWay, StringFormat='Progress: {0}'}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="Pauza"
+                                        Command="{Binding DataContext.PauseStrategyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"
+                                        Background="#FFC107"
+                                        Foreground="White"
+                                        Padding="12,6"
+                                        Margin="0,0,5,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRunning}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Status}" Value="Paused">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="Wznów"
+                                        Command="{Binding DataContext.ResumeStrategyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"
+                                        Background="#4CAF50"
+                                        Foreground="White"
+                                        Padding="12,6"
+                                        Margin="0,0,5,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Status}" Value="Paused">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="Zatrzymaj"
+                                        Command="{Binding DataContext.StopStrategyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"
+                                        Background="#E53935"
+                                        Foreground="White"
+                                        Padding="12,6">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Status}" Value="Stopped">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Status}" Value="Error">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
                         </Grid>
                     </Border>
                 </DataTemplate>

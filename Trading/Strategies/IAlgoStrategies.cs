@@ -24,11 +24,42 @@ namespace FISApiClient.Trading.Strategies
         /// <summary>
         /// Current status of the strategy
         /// </summary>
-        AlgoStrategyStatus Status { get; }
+        AlgoStrategyStatus Status { get; set; }
 
         /// <summary>
-        /// Parameters specific to this strategy
+        /// Indicates if the strategy is currently running (not paused or stopped)
         /// </summary>
+        bool IsRunning { get; }
+
+        /// <summary>
+        /// Time when the strategy started
+        /// </summary>
+        DateTime? StartTime { get; }
+
+        /// <summary>
+        /// Last time the strategy updated its status or progress
+        /// </summary>
+        DateTime? LastUpdateTime { get; }
+
+        /// <summary>
+        /// Total number of trades executed by the strategy
+        /// </summary>
+        int TotalTrades { get; }
+
+        /// <summary>
+        /// Current Profit and Loss for the strategy
+        /// </summary>
+        decimal CurrentPnL { get; }
+
+        /// <summary>
+        /// A string representation of the current progress (e.g., "50% filled")
+        /// </summary>
+        string Progress { get; }
+
+        /// <summary>
+        /// A more detailed status message for the strategy
+        /// </summary>
+        string DetailedStatus { get; }
         Dictionary<string, object> Parameters { get; }
 
         /// <summary>
