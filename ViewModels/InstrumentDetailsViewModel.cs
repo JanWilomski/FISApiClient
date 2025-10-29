@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Input;
 using FISApiClient.Helpers;
 using FISApiClient.Models;
+using FISApiClient.Views;
 
 namespace FISApiClient.ViewModels
 {
@@ -280,6 +282,7 @@ namespace FISApiClient.ViewModels
         public RelayCommand SendOrderCommand { get; }
         public RelayCommand QuickBuyCommand { get; }
         public RelayCommand QuickSellCommand { get; }
+        public RelayCommand OpenAlgoStrategyCommand { get; }
 
         #endregion
 
@@ -316,10 +319,17 @@ namespace FISApiClient.ViewModels
                 _ => IsSleConnected && !IsSendingOrder && Details != null && Details.BidPrice > 0
             );
 
+            OpenAlgoStrategyCommand = new RelayCommand(
+                _ => OpenAlgoStrategy(),
+                _ => true
+            );
+
             _mdsService.InstrumentDetailsReceived += OnInstrumentDetailsReceived;
 
             _ = LoadDetailsAsync();
         }
+        
+       
 
         private bool CanSendOrder()
         {
@@ -730,6 +740,21 @@ namespace FISApiClient.ViewModels
             {
                 Spread = "-";
                 SpreadPercentage = "-";
+            }
+        }
+        
+        private void OpenAlgoStrategy()
+        {
+            try
+            {
+                var algoWindow = new AlgoStrategyWindow(_instrument, _mdsService, _sleService);
+                algoWindow.Owner = Application.Current.MainWindow;
+                algoWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"❌ Błąd otwierania okna strategii: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"[InstrumentDetailsVM] Error opening algo window: {ex.Message}");
             }
         }
 

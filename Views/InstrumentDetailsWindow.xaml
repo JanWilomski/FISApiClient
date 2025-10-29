@@ -804,14 +804,65 @@
                         </StackPanel>
                     </Expander>
 
-                    <!-- Send Order Button -->
-                    <Button Content="🚀 Wyślij zlecenie"
-                           Command="{Binding SendOrderCommand}"
-                           Style="{StaticResource ActionButton}"
-                           FontSize="14"
-                           Padding="15,10"
-                           Margin="0"
-                           Height="45"/>
+                    <Grid Margin="0,20,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Algo Strategy Button -->
+                        <Button Grid.Column="0"
+                                Content="⚡ Algo"
+                                Command="{Binding OpenAlgoStrategyCommand}"
+                                Style="{StaticResource ActionButton}"
+                                FontSize="14"
+                                Padding="15,10"
+                                Height="45"
+                                Background="#FF9800">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                           CornerRadius="4">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        Margin="{TemplateBinding Padding}"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#F57C00"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter Property="Background" Value="#E65100"/>
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter Property="Background" Value="#CCCCCC"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
+                        <!-- Send Order Button -->
+                        <Button Grid.Column="2"
+                                Content="🚀 Wyślij zlecenie"
+                                Command="{Binding SendOrderCommand}"
+                                Style="{StaticResource ActionButton}"
+                                FontSize="14"
+                                Padding="15,10"
+                                Height="45"/>
+                    </Grid>
+
+                    <!-- Info Text -->
+                    <TextBlock Text="ℹ API V3 - Wszystkie zlecenia są wysyłane z użyciem FIS Trading API V3"
+                              FontSize="10"
+                              Foreground="#999999"
+                              TextWrapping="Wrap"
+                              Margin="0,15,0,0"
+                              HorizontalAlignment="Center"
+                              TextAlignment="Center"/>
+                    
+                    
 
                     <!-- Info Text -->
                     <TextBlock Text="ℹ API V3 - Wszystkie zlecenia są wysyłane z użyciem FIS Trading API V3"
