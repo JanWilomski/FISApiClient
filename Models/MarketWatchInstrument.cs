@@ -15,6 +15,7 @@ namespace FISApiClient.Models
         public string Symbol { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string ISIN { get; set; } = string.Empty;
+        public string LocalCode { get; set; } = string.Empty;
 
         #region Real-time Properties
 

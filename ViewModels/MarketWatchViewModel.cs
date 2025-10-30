@@ -183,7 +183,8 @@ namespace FISApiClient.ViewModels
                 Glid = instrument.Glid,
                 Symbol = instrument.Symbol,
                 Name = instrument.Name,
-                ISIN = instrument.ISIN
+                ISIN = instrument.ISIN,
+                LocalCode = instrument.LocalCode
             };
 
             // Dodaj do kolekcji i dictionary

@@ -34,7 +34,8 @@ namespace FISApiClient.Views
                     Glid = selectedInstrument.Glid,
                     Symbol = selectedInstrument.Symbol,
                     Name = selectedInstrument.Name,
-                    ISIN = selectedInstrument.ISIN
+                    ISIN = selectedInstrument.ISIN,
+                    LocalCode = selectedInstrument.LocalCode
                 };
 
                 _navigationService.ShowInstrumentDetailsWindow(instrument, _mdsService, _sleService);
