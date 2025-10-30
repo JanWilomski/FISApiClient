@@ -26,17 +26,20 @@ namespace FISApiClient.Services
             detailsWindow.Show();
         }
 
-        public void ShowMarketWatchWindow(MdsConnectionService mdsService, SleConnectionService sleService)
+        public MarketWatchViewModel ShowMarketWatchWindow(MdsConnectionService mdsService, SleConnectionService sleService)
         {
             var existingWindow = Application.Current.Windows.OfType<MarketWatchWindow>().FirstOrDefault();
             if (existingWindow != null)
             {
                 existingWindow.Activate();
+                return (MarketWatchViewModel)existingWindow.DataContext;
             }
             else
             {
-                var marketWatchWindow = new MarketWatchWindow(new MarketWatchViewModel(mdsService), mdsService, sleService);
+                var viewModel = new MarketWatchViewModel(mdsService);
+                var marketWatchWindow = new MarketWatchWindow(viewModel, mdsService, sleService);
                 marketWatchWindow.Show();
+                return viewModel;
             }
         }
 

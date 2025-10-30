@@ -15,7 +15,7 @@ namespace FISApiClient.ViewModels
         private readonly MdsConnectionService _mdsService;
         private readonly SleConnectionService _sleService;
         private readonly InstrumentCacheService _cacheService;
-        private Views.MarketWatchWindow? _marketWatchWindow;
+        private readonly NavigationService _navigationService;
 
         // Flaga do śledzenia czy instrumenty są obecnie ładowane z serwera
         private bool _isLoadingFromServer = false;
@@ -108,6 +108,7 @@ namespace FISApiClient.ViewModels
             _mdsService = mdsService;
             _sleService = sleService;
             _cacheService = new InstrumentCacheService();
+            _navigationService = new NavigationService();
 
             LoadInstrumentsCommand = new RelayCommand(
                 async _ => await LoadInstrumentsAsync(),
@@ -136,6 +137,8 @@ namespace FISApiClient.ViewModels
 
             // Podpięcie eventu do otrzymywania instrumentów
             _mdsService.InstrumentsReceived += OnInstrumentsReceived;
+
+            LoadInstrumentsAsync();
         }
 
         private async System.Threading.Tasks.Task LoadInstrumentsAsync()
@@ -386,41 +389,20 @@ namespace FISApiClient.ViewModels
             }
         }
 
-        private void OpenMarketWatch()
+        private MarketWatchViewModel OpenMarketWatch()
         {
-            if (_marketWatchWindow == null || !_marketWatchWindow.IsLoaded)
-            {
-                var viewModel = new MarketWatchViewModel(_mdsService);
-                _marketWatchWindow = new Views.MarketWatchWindow(viewModel, _mdsService, _sleService);  // ZMIEŃ TĘ LINIĘ
-                _marketWatchWindow.Closed += (s, e) => _marketWatchWindow = null;
-                _marketWatchWindow.Show();
-            }
-            else
-            {
-                // Okno już istnieje - przywróć je na wierzch
-                if (_marketWatchWindow.WindowState == WindowState.Minimized)
-                {
-                    _marketWatchWindow.WindowState = WindowState.Normal;
-                }
-                _marketWatchWindow.Activate();
-            }
+            return _navigationService.ShowMarketWatchWindow(_mdsService, _sleService);
         }
 
         private async System.Threading.Tasks.Task AddSelectedToMarketWatchAsync()
         {
             if (SelectedInstrument == null) return;
 
-            // Otwórz Market Watch jeśli nie jest otwarte
-            if (_marketWatchWindow == null || !_marketWatchWindow.IsLoaded)
-            {
-                OpenMarketWatch();
-            }
+            // Otwórz Market Watch i pobierz jego ViewModel
+            var marketWatchViewModel = OpenMarketWatch();
 
             // Dodaj instrument
-            if (_marketWatchWindow?.DataContext is MarketWatchViewModel viewModel)
-            {
-                await viewModel.AddInstrumentAsync(SelectedInstrument);
-            }
+            await marketWatchViewModel.AddInstrumentAsync(SelectedInstrument);
         }
     }
 }

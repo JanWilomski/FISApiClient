@@ -38,7 +38,7 @@ namespace FISApiClient.Services
         /// </summary>
         private string GetTodayCacheFileName()
         {
-            string dateString = DateTime.Now.ToString("yyyy-MM-dd");
+            string dateString = DateTime.Now.ToString("dd-MM-yyyy");
             return $"{FILE_PREFIX}{dateString}{FILE_EXTENSION}";
         }
 
