@@ -1,8 +1,12 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using FISApiClient.Helpers;
 using FISApiClient.Models;
 using FISApiClient.Views;
@@ -16,6 +20,11 @@ namespace FISApiClient.ViewModels
         private readonly Instrument _instrument;
         private bool _isRequestInProgress = false;
         private bool _isRealTimeActive = false;
+
+        // Batch processing for details
+        private readonly ConcurrentQueue<InstrumentDetails> _updateQueue = new();
+        private readonly DispatcherTimer _batchTimer;
+        private readonly SemaphoreSlim _batchLock = new(1, 1);
 
         #region Properties
 
@@ -326,6 +335,13 @@ namespace FISApiClient.ViewModels
 
             _mdsService.InstrumentDetailsReceived += OnInstrumentDetailsReceived;
 
+            _batchTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(50)
+            };
+            _batchTimer.Tick += async (s, e) => await ProcessBatchUpdatesAsync();
+            _batchTimer.Start();
+
             _ = LoadDetailsAsync();
         }
         
@@ -564,34 +580,8 @@ namespace FISApiClient.ViewModels
                 
                 System.Diagnostics.Debug.WriteLine($"[ViewModel] Request sent, waiting for snapshot + real-time updates...");
                 
-                int waitTime = 0;
-                int maxWait = 10000; 
-                int checkInterval = 100;
-                
-                while (waitTime < maxWait)
-                {
-                    await System.Threading.Tasks.Task.Delay(checkInterval);
-                    waitTime += checkInterval;
-                    
-                    if (!IsLoading)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[ViewModel] Snapshot received after {waitTime}ms");
-                        System.Diagnostics.Debug.WriteLine($"[ViewModel] Now receiving real-time updates (request 1003)...");
-                        StatusMessage = $"✓ Real-Time aktywny | Updates: {UpdateCount}";
-                        _isRequestInProgress = false;
-                        return;
-                    }
-                }
-                
-                System.Diagnostics.Debug.WriteLine($"[ViewModel] Timeout after {maxWait}ms");
-                IsLoading = false;
-                StatusMessage = "Timeout: Nie otrzymano odpowiedzi od serwera";
-                MessageBox.Show(
-                    "Serwer nie odpowiedział w ciągu 10 sekund.\nSpróbuj ponownie.",
-                    "Timeout",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning
-                );
+                // No longer need the busy-wait loop here, as updates will come via batch processing
+                // The IsLoading will be set to false by the first batch update
             }
             catch (Exception ex)
             {
@@ -613,64 +603,67 @@ namespace FISApiClient.ViewModels
 
         private void OnInstrumentDetailsReceived(InstrumentDetails details)
         {
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] ========== RECEIVED DETAILS ==========");
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Received GlidAndSymbol: '{details.GlidAndSymbol}' (Length: {details.GlidAndSymbol.Length})");
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Expected GLID: '{_instrument.Glid}' (Length: {_instrument.Glid.Length})");
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Expected Symbol: '{_instrument.Symbol}' (Length: {_instrument.Symbol.Length})");
-            
-            string receivedGlid = details.GlidAndSymbol.Length >= 12 
-                ? details.GlidAndSymbol.Substring(0, 12) 
+            if (string.IsNullOrEmpty(details.GlidAndSymbol)) return;
+
+            string receivedGlid = details.GlidAndSymbol.Length >= 12
+                ? details.GlidAndSymbol.Substring(0, 12)
                 : details.GlidAndSymbol;
-            
-            string receivedSymbol = details.GlidAndSymbol.Length > 12 
-                ? details.GlidAndSymbol.Substring(12) 
+
+            string receivedSymbol = details.GlidAndSymbol.Length > 12
+                ? details.GlidAndSymbol.Substring(12)
                 : "";
-            
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Parsed received GLID: '{receivedGlid}'");
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Parsed received Symbol: '{receivedSymbol}'");
-            
+
             bool glidMatches = receivedGlid.Trim().Equals(_instrument.Glid.Trim(), StringComparison.OrdinalIgnoreCase);
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] GLID matches: {glidMatches}");
-            
-            if (!glidMatches)
-            {
-                System.Diagnostics.Debug.WriteLine($"[ViewModel] GLID mismatch - ignoring");
-                System.Diagnostics.Debug.WriteLine($"[ViewModel] =====================================");
-                return;
-            }
-            
             bool symbolMatches = receivedSymbol.Trim().Equals(_instrument.Symbol.Trim(), StringComparison.OrdinalIgnoreCase);
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Symbol matches: {symbolMatches}");
-            
-            if (!symbolMatches)
+
+            if (!glidMatches || !symbolMatches)
             {
-                System.Diagnostics.Debug.WriteLine($"[ViewModel] Symbol mismatch - ignoring");
-                System.Diagnostics.Debug.WriteLine($"[ViewModel] =====================================");
                 return;
             }
 
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] ✓ MATCH FOUND! Updating UI...");
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] =====================================");
-            
-            Application.Current.Dispatcher.Invoke(() =>
+            _updateQueue.Enqueue(details);
+        }
+
+        private async Task ProcessBatchUpdatesAsync()
+        {
+            if (_updateQueue.IsEmpty) return;
+
+            if (!await _batchLock.WaitAsync(0))
+                return;
+
+            try
             {
-                Details = details;
-                IsLoading = false;
-                
-                UpdateCount++;
-                
-                if (_isRealTimeActive)
+                InstrumentDetails? latestDetails = null;
+                while (_updateQueue.TryDequeue(out var details))
                 {
-                    StatusMessage = $"✓ Real-Time aktywny | Updates: {UpdateCount} | {DateTime.Now:HH:mm:ss}";
+                    latestDetails = details;
                 }
-                else
+
+                if (latestDetails == null) return;
+
+                await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    StatusMessage = $"Ostatnia aktualizacja: {DateTime.Now:HH:mm:ss}";
-                }
-                
-                QuickBuyCommand.RaiseCanExecuteChanged();
-                QuickSellCommand.RaiseCanExecuteChanged();
-            });
+                    Details = latestDetails;
+                    IsLoading = false;
+                    UpdateCount++;
+
+                    if (_isRealTimeActive)
+                    {
+                        StatusMessage = $"✓ Real-Time aktywny | Updates: {UpdateCount} | {DateTime.Now:HH:mm:ss}";
+                    }
+                    else
+                    {
+                        StatusMessage = $"Ostatnia aktualizacja: {DateTime.Now:HH:mm:ss}";
+                    }
+
+                    QuickBuyCommand.RaiseCanExecuteChanged();
+                    QuickSellCommand.RaiseCanExecuteChanged();
+                }, DispatcherPriority.Background);
+            }
+            finally
+            {
+                _batchLock.Release();
+            }
         }
 
         private void UpdateAllProperties()
@@ -758,96 +751,190 @@ namespace FISApiClient.ViewModels
             }
         }
 
-        public async void Cleanup()
-        {
-            System.Diagnostics.Debug.WriteLine($"[ViewModel] Cleanup called for {_instrument.Symbol}");
-            
-            _mdsService.InstrumentDetailsReceived -= OnInstrumentDetailsReceived;
-            
-            if (_isRealTimeActive)
-            {
-                string glidAndSymbol = _instrument.Glid + _instrument.Symbol;
-                System.Diagnostics.Debug.WriteLine($"[ViewModel] Stopping real-time updates for {glidAndSymbol}");
+                public async void Cleanup()
+
+                {
+
+                    System.Diagnostics.Debug.WriteLine($"[ViewModel] Cleanup called for {_instrument.Symbol}");
+
+                    
+
+                    _mdsService.InstrumentDetailsReceived -= OnInstrumentDetailsReceived;
+
+                    _batchTimer.Stop();
+
+                    _batchLock.Dispose();
+
+                    
+
+                    if (_isRealTimeActive)
+
+                    {
+
+                        string glidAndSymbol = _instrument.Glid + _instrument.Symbol;
+
+                        System.Diagnostics.Debug.WriteLine($"[ViewModel] Stopping real-time updates for {glidAndSymbol}");
+
+                        
+
+                        try
+
+                        {
+
+                            await _mdsService.StopInstrumentDetailsAsync(glidAndSymbol);
+
+                            _isRealTimeActive = false;
+
+                            System.Diagnostics.Debug.WriteLine($"[ViewModel] Real-time updates stopped successfully");
+
+                        }
+
+                        catch (Exception ex)
+
+                        {
+
+                            System.Diagnostics.Debug.WriteLine($"[ViewModel] Error stopping real-time updates: {ex.Message}");
+
+                        }
+
+                    }
+
+                }
+
                 
-                try
+
+                #region FIS Workstation Parameters
+
+        
+
+                private string _clientCodeType = "C";
+
+                public string ClientCodeType
+
                 {
-                    await _mdsService.StopInstrumentDetailsAsync(glidAndSymbol);
-                    _isRealTimeActive = false;
-                    System.Diagnostics.Debug.WriteLine($"[ViewModel] Real-time updates stopped successfully");
+
+                    get => _clientCodeType;
+
+                    set => SetProperty(ref _clientCodeType, value);
+
                 }
-                catch (Exception ex)
+
+        
+
+                private string _clearingAccount = "0100";
+
+                public string ClearingAccount
+
                 {
-                    System.Diagnostics.Debug.WriteLine($"[ViewModel] Error stopping real-time updates: {ex.Message}");
+
+                    get => _clearingAccount;
+
+                    set => SetProperty(ref _clearingAccount, value);
+
                 }
+
+        
+
+                private string _allocationCode = "0959";
+
+                public string AllocationCode
+
+                {
+
+                    get => _allocationCode;
+
+                    set => SetProperty(ref _allocationCode, value);
+
+                }
+
+        
+
+                private string _memo = "7841";
+
+                public string Memo
+
+                {
+
+                    get => _memo;
+
+                    set => SetProperty(ref _memo, value);
+
+                }
+
+        
+
+                private string _secondClientCodeType = "B";
+
+                public string SecondClientCodeType
+
+                {
+
+                    get => _secondClientCodeType;
+
+                    set => SetProperty(ref _secondClientCodeType, value);
+
+                }
+
+        
+
+                private string _floorTraderId = "0959";
+
+                public string FloorTraderId
+
+                {
+
+                    get => _floorTraderId;
+
+                    set => SetProperty(ref _floorTraderId, value);
+
+                }
+
+        
+
+                private string _clientFreeField1 = "100";
+
+                public string ClientFreeField1
+
+                {
+
+                    get => _clientFreeField1;
+
+                    set => SetProperty(ref _clientFreeField1, value);
+
+                }
+
+        
+
+                private string _clientReference = "784";
+
+                public string ClientReference
+
+                {
+
+                    get => _clientReference;
+
+                    set => SetProperty(ref _clientReference, value);
+
+                }
+
+        
+
+                private string _currency = "PLN";
+
+                public string Currency
+
+                {
+
+                    get => _currency;
+
+                    set => SetProperty(ref _currency, value);
+
+                }
+
+        
+
+                #endregion
+
             }
-        }
-        
-        
-        #region FIS Workstation Parameters
 
-        private string _clientCodeType = "C";
-        public string ClientCodeType
-        {
-            get => _clientCodeType;
-            set => SetProperty(ref _clientCodeType, value);
         }
-
-        private string _clearingAccount = "0100";
-        public string ClearingAccount
-        {
-            get => _clearingAccount;
-            set => SetProperty(ref _clearingAccount, value);
-        }
-
-        private string _allocationCode = "0959";
-        public string AllocationCode
-        {
-            get => _allocationCode;
-            set => SetProperty(ref _allocationCode, value);
-        }
-
-        private string _memo = "7841";
-        public string Memo
-        {
-            get => _memo;
-            set => SetProperty(ref _memo, value);
-        }
-
-        private string _secondClientCodeType = "B";
-        public string SecondClientCodeType
-        {
-            get => _secondClientCodeType;
-            set => SetProperty(ref _secondClientCodeType, value);
-        }
-
-        private string _floorTraderId = "0959";
-        public string FloorTraderId
-        {
-            get => _floorTraderId;
-            set => SetProperty(ref _floorTraderId, value);
-        }
-
-        private string _clientFreeField1 = "100";
-        public string ClientFreeField1
-        {
-            get => _clientFreeField1;
-            set => SetProperty(ref _clientFreeField1, value);
-        }
-
-        private string _clientReference = "784";
-        public string ClientReference
-        {
-            get => _clientReference;
-            set => SetProperty(ref _clientReference, value);
-        }
-
-        private string _currency = "PLN";
-        public string Currency
-        {
-            get => _currency;
-            set => SetProperty(ref _currency, value);
-        }
-
-        #endregion
-    }
-}

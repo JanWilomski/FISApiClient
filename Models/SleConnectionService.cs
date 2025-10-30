@@ -418,11 +418,11 @@ namespace FISApiClient.Models
                 // Wywołaj eventy
                 if (replyType == 'A')
                 {
-                    OrderAccepted?.Invoke($"Order accepted - Reference: {bitmapFields.GetValueOrDefault(42, "N/A")}");
+                    _ = Task.Run(() => OrderAccepted?.Invoke($"Order accepted - Reference: {bitmapFields.GetValueOrDefault(42, "N/A")}"));
                 }
                 else if (replyType == 'C' || replyType == 'G')
                 {
-                    OrderRejected?.Invoke($"Order rejected - Code: {bitmapFields.GetValueOrDefault(65, "Unknown")}");
+                    _ = Task.Run(() => OrderRejected?.Invoke($"Order rejected - Code: {bitmapFields.GetValueOrDefault(65, "Unknown")}"));
                 }
                 
                 // Dodatkowo - obsłuż real-time update dla Order Book
@@ -1126,12 +1126,12 @@ namespace FISApiClient.Models
                     if (chaining == '0')
                     {
                         var orders = new List<Order> { order };
-                        OrderBookReceived?.Invoke(orders);
+                        _ = Task.Run(() => OrderBookReceived?.Invoke(orders));
                     }
                     else
                     {
                         var orders = new List<Order> { order };
-                        OrderBookReceived?.Invoke(orders);
+                        _ = Task.Run(() => OrderBookReceived?.Invoke(orders));
                     }
                 }
                 else
@@ -1473,7 +1473,7 @@ namespace FISApiClient.Models
                     order.SetStatus(statusFromReply);
                 }
                 
-                OrderUpdated?.Invoke(order);
+                _ = Task.Run(() => OrderUpdated?.Invoke(order));
                 
                 System.Diagnostics.Debug.WriteLine($"[SLE] Order update broadcasted - ID: {order.OrderId}, Status: {order.Status}");
             }

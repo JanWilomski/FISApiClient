@@ -225,20 +225,20 @@ namespace FISApiClient.Trading.Strategies
                 Currency = OrderParams.Currency
             };
 
-            OrderRequested?.Invoke(this, orderRequest);
+            _ = Task.Run(() => OrderRequested?.Invoke(this, orderRequest));
 
             _totalExecutedQuantity += orderQuantity;
             TotalTrades++;
             Progress = $"{(_totalExecutedQuantity * 100.0 / OrderParams.TotalQuantity):F2}%";
             DetailedStatus = $"Sent order for {orderQuantity} shares. Total executed: {_totalExecutedQuantity}";
             
-            ProgressUpdated?.Invoke(this, new AlgoProgressUpdate
+            _ = Task.Run(() => ProgressUpdated?.Invoke(this, new AlgoProgressUpdate
             {
                 ExecutedQuantity = _totalExecutedQuantity,
                 RemainingQuantity = OrderParams.TotalQuantity - _totalExecutedQuantity,
                 Message = DetailedStatus,
                 ProgressPercentage = _totalExecutedQuantity * 100.0 / OrderParams.TotalQuantity
-            });
+            }));
 
             if (_totalExecutedQuantity >= OrderParams.TotalQuantity)
             {

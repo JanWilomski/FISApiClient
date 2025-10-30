@@ -402,7 +402,7 @@ namespace FISApiClient.Models
                         if (!string.IsNullOrEmpty(instrument.Symbol)) instruments.Add(instrument);
                     }
                 }
-                if (instruments.Any()) InstrumentsReceived?.Invoke(instruments);
+                if (instruments.Any()) _ = Task.Run(() => InstrumentsReceived?.Invoke(instruments));
             }
             catch (Exception ex)
             {
@@ -464,7 +464,7 @@ namespace FISApiClient.Models
 
                 Debug.WriteLine($"[MDS] === PARSING COMPLETE ===");
 
-                InstrumentDetailsReceived?.Invoke(details);
+                _ = Task.Run(() => InstrumentDetailsReceived?.Invoke(details));
             }
             catch (Exception ex)
             {
@@ -544,7 +544,7 @@ namespace FISApiClient.Models
                 
                 Debug.WriteLine($"[MDS] === REAL-TIME UPDATE COMPLETE ===");
                 
-                InstrumentDetailsReceived?.Invoke(details);
+                _ = Task.Run(() => InstrumentDetailsReceived?.Invoke(details));
             }
             catch (Exception ex)
             {
