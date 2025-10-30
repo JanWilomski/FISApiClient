@@ -91,7 +91,7 @@ namespace FISApiClient.Trading.Strategies
             _sleService = sleService;
             _mdsService = mdsService;
             OrderParams = orderParams;
-            Status = AlgoStrategyStatus.Idle; // Initial status
+            Status = AlgoStrategyStatus.Idle;
             DetailedStatus = "Ready";
         }
 
@@ -136,7 +136,8 @@ namespace FISApiClient.Trading.Strategies
 
         public Task StopAsync()
         {
-            if (Status == AlgoStrategyStatus.Stopped || Status == AlgoStrategyStatus.Completed || Status == AlgoStrategyStatus.Error) return Task.CompletedTask;
+            if (Status == AlgoStrategyStatus.Stopped || Status == AlgoStrategyStatus.Completed || Status == AlgoStrategyStatus.Error) 
+                return Task.CompletedTask;
 
             Status = AlgoStrategyStatus.Stopped;
             DetailedStatus = "Stopped by user.";
@@ -161,7 +162,7 @@ namespace FISApiClient.Trading.Strategies
         {
             if (Status != AlgoStrategyStatus.Paused) return Task.CompletedTask;
 
-            _cts = new CancellationTokenSource(); // Create a new CTS for resuming
+            _cts = new CancellationTokenSource();
             Status = AlgoStrategyStatus.Running;
             DetailedStatus = "Resuming...";
             _mdsService.InstrumentDetailsReceived += OnMarketDataUpdate;
@@ -186,30 +187,45 @@ namespace FISApiClient.Trading.Strategies
                 return;
             }
 
-            long marketVolumeChange = marketData.Volume - _initialVolume;
+            // *** POPRAWKA: Odejmij własne transakcje od total volume aby uzyskać czysty volume rynku ***
+            // Problem: marketData.Volume zawiera WSZYSTKIE transakcje, włączając nasze własne
+            // Rozwiązanie: Odejmujemy _totalExecutedQuantity aby uzyskać tylko zewnętrzny volume rynku
+            long actualMarketVolume = marketData.Volume - _totalExecutedQuantity;
+            long marketVolumeChange = actualMarketVolume - _initialVolume;
+            
+            Debug.WriteLine($"[{Name}] Total Volume: {marketData.Volume}, Our Volume: {_totalExecutedQuantity}, Market Volume: {actualMarketVolume}, Change: {marketVolumeChange}");
+            
             if (marketVolumeChange <= 0) return;
 
+            // Oblicz target volume strategii według wzoru POV
+            // Formuła: targetAlgoVolume = marketVolume * (participationRate / (1 - participationRate))
+            // Przykład: przy 20% participation rate: targetAlgo = marketVolume * (0.2 / 0.8) = marketVolume * 0.25
             long targetAlgoVolume = (long)(marketVolumeChange * (_participationRate / (1 - _participationRate)));
             long neededVolume = targetAlgoVolume - _totalExecutedQuantity;
+
+            Debug.WriteLine($"[{Name}] Target Algo Volume: {targetAlgoVolume}, Needed: {neededVolume}");
 
             if (neededVolume <= 0) return;
 
             long lastTradeQuantity = marketData.LastQuantity;
             if (lastTradeQuantity <= 0) return; // Don't react to updates without a trade
 
+            // Oblicz quantity do zlecenia - minimum z potrzebnego volume i ostatniej transakcji
             long orderQuantity = Math.Min(neededVolume, lastTradeQuantity);
-            orderQuantity = Math.Min(orderQuantity, OrderParams.TotalQuantity - _totalExecutedQuantity); // Don't exceed total order quantity
+            orderQuantity = Math.Min(orderQuantity, OrderParams.TotalQuantity - _totalExecutedQuantity);
 
             if (orderQuantity <= 0) return;
 
-            // This strategy always sends Market orders to ensure participation.
+            Debug.WriteLine($"[{Name}] Sending order for {orderQuantity} shares (LastTradeQty: {lastTradeQuantity})");
+
+            // Strategia zawsze wysyła Market orders aby zapewnić realizację
             var orderRequest = new AlgoOrderRequest
             {
                 LocalCode = OrderParams.Instrument.LocalCode,
                 Glid = OrderParams.Instrument.Glid,
                 Side = OrderParams.Side,
                 Quantity = orderQuantity,
-                Modality = OrderModality.Market, // Always Market
+                Modality = OrderModality.Market,
                 Price = 0, // Price must be 0 for Market orders
                 Validity = OrderValidity.IOC, // Always use IOC for this strategy's market orders
 
