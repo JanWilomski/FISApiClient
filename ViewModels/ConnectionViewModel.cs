@@ -455,7 +455,6 @@ namespace FISApiClient.ViewModels
         }
 
         #endregion
-
         public MdsConnectionService GetMdsService() => _mdsService;
         public SleConnectionService GetSleService() => _sleService;
     }
