@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using FISApiClient.Helpers;
+using FISApiClient.Models;
 using FISApiClient.Services;
 using FISApiClient.Trading.Strategies;
 
