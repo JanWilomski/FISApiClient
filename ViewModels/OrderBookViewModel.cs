@@ -123,6 +123,8 @@ namespace FISApiClient.ViewModels
             }
             
             LoadInstrumentMapping();
+
+            RefreshOrderBook();
         }
 
         #endregion

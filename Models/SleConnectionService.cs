@@ -618,7 +618,7 @@ namespace FISApiClient.Models
                 intRef = $"ORD{DateTime.Now:yyyyMMddHHmmss}";
             }
             intRef = intRef.Substring(0, Math.Min(16, intRef.Length));
-            //fields[12] = intRef;
+            fields[12] = intRef;
             Debug.WriteLine($"[SLE] Field #12: Internal Reference = {intRef}");
             
             // Field 17: Client Code Type (MANDATORY dla WSE)
