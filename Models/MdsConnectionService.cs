@@ -415,26 +415,35 @@ namespace FISApiClient.Models
             try
             {
                 int pos = stxPos + HeaderLength;
-                var details = new InstrumentDetails();
-
-                byte chaining = response[pos++];
+                
                 Debug.WriteLine($"[MDS] === PARSING INSTRUMENT DETAILS SNAPSHOT ===");
+                
+                // Czytaj chaining byte (1 bajt ASCII)
+                byte chaining = response[pos++];
                 Debug.WriteLine($"[MDS] Chaining: {chaining}");
 
-                details.GlidAndSymbol = DecodeField(response, ref pos);
-                Debug.WriteLine($"[MDS] GlidAndSymbol: '{details.GlidAndSymbol}'");
+                // Czytaj GLID + Stockcode (GL)
+                string glidAndSymbol = DecodeField(response, ref pos);
+                Debug.WriteLine($"[MDS] GlidAndSymbol: '{glidAndSymbol}'");
                 
-                if (string.IsNullOrEmpty(details.GlidAndSymbol))
+                if (string.IsNullOrEmpty(glidAndSymbol))
                 {
                     Debug.WriteLine("[MDS] GlidAndSymbol is empty, skipping response");
                     return;
                 }
 
+                // Pomiń 7-bajtowy filler (FILLER FILLER 7 = surowe spacje, NIE pole GL!)
                 Debug.WriteLine($"[MDS] Position before filler: {pos}, skipping 7-byte filler");
                 pos += 7;
                 Debug.WriteLine($"[MDS] Position after filler: {pos}");
 
-                var allFields = new List<string>();
+                var details = new InstrumentDetails { GlidAndSymbol = glidAndSymbol };
+                
+                // Snapshot używa SEKWENCYJNEGO formatu - czytaj WSZYSTKIE pola po kolei
+                // Puste pola są przesyłane jako GL 0 (jeden bajt = 32)
+                // Pozycje 7, 15, 23, 31, ... to GL 0 (puste pola), ale są obecne w danych
+                int fieldPosition = 0;
+                
                 while (pos < length - FooterLength)
                 {
                     if (pos + FooterLength <= length && response[pos + 2] == Etx)
@@ -443,23 +452,35 @@ namespace FISApiClient.Models
                         break;
                     }
                     
-                    string fieldValue = DecodeField(response, ref pos);
-                    allFields.Add(fieldValue);
+                    if (pos >= length)
+                        break;
                     
-                    if (allFields.Count > 300)
+                    // Czytaj wartość pola (GL format) - nawet jeśli jest puste (GL 0)
+                    string fieldValue = DecodeField(response, ref pos);
+                    
+                    if (!string.IsNullOrEmpty(fieldValue))
                     {
-                        Debug.WriteLine("[MDS] Warning: Too many fields (>300), breaking");
+                        Debug.WriteLine($"[MDS] Field position {fieldPosition} = '{fieldValue}'");
+                    }
+                    
+                    // Mapuj do obiektu details używając pozycji
+                    UpdateDetailField(details, fieldPosition, fieldValue);
+                    
+                    fieldPosition++;
+                    
+                    if (fieldPosition > 300)
+                    {
+                        Debug.WriteLine("[MDS] Too many fields (>300), breaking");
                         break;
                     }
                 }
-
-                Debug.WriteLine($"[MDS] Total fields decoded: {allFields.Count}");
                 
-                MapFieldsToDetails(details, allFields);
+                Debug.WriteLine($"[MDS] Total fields read: {fieldPosition}");
+                Debug.WriteLine($"[MDS] Final values: Bid={details.BidPrice:F2}, Ask={details.AskPrice:F2}, Last={details.LastPrice:F2}");
 
                 lock (_subscriptionLock)
                 {
-                    _instrumentDetailsCache[details.GlidAndSymbol] = details;
+                    _instrumentDetailsCache[glidAndSymbol] = details;
                 }
 
                 Debug.WriteLine($"[MDS] === PARSING COMPLETE ===");
@@ -616,92 +637,7 @@ namespace FISApiClient.Models
                     break;
             }
         }
-        
-        private void MapFieldsToDetails(InstrumentDetails details, List<string> allFields)
-        {
-            Debug.WriteLine($"[MDS] === NON-EMPTY FIELDS ===");
-            for (int i = 0; i < allFields.Count; i++)
-            {
-                if (!string.IsNullOrEmpty(allFields[i]))
-                {
-                    Debug.WriteLine($"[MDS] Field[{i}] = '{allFields[i]}'");
-                }
-            }
-            
-            if (allFields.Count > 0) 
-                details.BidQuantity = ParseLong(allFields[0]);
-            
-            if (allFields.Count > 1) 
-                details.BidPrice = ParseDecimal(allFields[1]);
-            
-            if (allFields.Count > 2) 
-                details.AskPrice = ParseDecimal(allFields[2]);
-            
-            if (allFields.Count > 3) 
-                details.AskQuantity = ParseLong(allFields[3]);
-            
-            if (allFields.Count > 4) 
-                details.LastPrice = ParseDecimal(allFields[4]);
-            
-            if (allFields.Count > 5) 
-                details.LastQuantity = ParseLong(allFields[5]);
-            
-            if (allFields.Count > 6)
-            {
-                details.LastTradeTime = FormatTime(allFields[6]);
-                Debug.WriteLine($"[MDS] LastTradeTime: raw='{allFields[6]}' formatted='{details.LastTradeTime}'");
-            }
-            
-            if (allFields.Count > 8) 
-                details.PercentageVariation = ParseDecimal(allFields[8]);
-            
-            if (allFields.Count > 9) 
-                details.Volume = ParseLong(allFields[9]);
-            
-            if (allFields.Count > 10) 
-                details.OpenPrice = ParseDecimal(allFields[10]);
-            
-            if (allFields.Count > 11) 
-                details.HighPrice = ParseDecimal(allFields[11]);
-            
-            if (allFields.Count > 12) 
-                details.LowPrice = ParseDecimal(allFields[12]);
-            
-            if (allFields.Count > 13) 
-                details.SuspensionIndicator = allFields[13];
-            
-            if (allFields.Count > 14) 
-                details.VariationSign = allFields[14];
-            
-            if (allFields.Count > 16) 
-                details.ClosePrice = ParseDecimal(allFields[16]);
-            
-            if (allFields.Count > 42)
-            {
-                details.LocalCode = allFields[42];
-                Debug.WriteLine($"[MDS] LocalCode (position 42): '{details.LocalCode}'");
-            }
-            
-            if (allFields.Count > 88)
-            {
-                details.ISIN = allFields[88];
-                Debug.WriteLine($"[MDS] ISIN (position 88): '{details.ISIN}'");
-            }
-            
-            if (allFields.Count > 140)
-            {
-                details.TradingPhase = allFields[140];
-                Debug.WriteLine($"[MDS] TradingPhase (position 140): '{details.TradingPhase}'");
-            }
 
-            Debug.WriteLine($"[MDS] === PARSED VALUES ===");
-            Debug.WriteLine($"[MDS] Prices: Bid={details.BidPrice:F2}, Ask={details.AskPrice:F2}, Last={details.LastPrice:F2}");
-            Debug.WriteLine($"[MDS] Quantities: BidQty={details.BidQuantity}, AskQty={details.AskQuantity}, LastQty={details.LastQuantity}");
-            Debug.WriteLine($"[MDS] OHLC: Open={details.OpenPrice:F2}, High={details.HighPrice:F2}, Low={details.LowPrice:F2}, Close={details.ClosePrice:F2}");
-            Debug.WriteLine($"[MDS] Volume={details.Volume}, PercentageVar={details.PercentageVariation:F2}%");
-            Debug.WriteLine($"[MDS] LocalCode='{details.LocalCode}', ISIN='{details.ISIN}', TradingPhase='{details.TradingPhase}'");
-        }
-        
         private InstrumentDetails CloneDetails(InstrumentDetails source)
         {
             return new InstrumentDetails
