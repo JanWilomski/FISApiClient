@@ -394,6 +394,32 @@ namespace FISApiClient.Models
 
         #endregion
 
+        #region Parent/Child Order Properties
+
+        private string _parentOrderId = string.Empty;
+        public string ParentOrderId
+        {
+            get => _parentOrderId;
+            set => SetProperty(ref _parentOrderId, value);
+        }
+
+        private bool _isParentOrder;
+        public bool IsParentOrder
+        {
+            get => _isParentOrder;
+            set => SetProperty(ref _isParentOrder, value);
+        }
+
+        private SliceAvailableType _sliceAvailable;
+
+        public SliceAvailableType SliceAvailable
+        {
+            get => _sliceAvailable;
+            set => SetProperty(ref _sliceAvailable, value);
+        }
+
+        #endregion
+
         #region Helper Methods
 
         /// <summary>

@@ -55,8 +55,17 @@ namespace FISApiClient.Models
         [Description("Modified")]
         Modified,
         [Description("Working")]
-        Working,
-        [Description("Unknown")]
-        Unknown
-    }
-}
+                Working,
+                [Description("Unknown")]
+                Unknown
+            }
+        
+            public enum SliceAvailableType
+            {
+                [Description("Order cannot manage childs")]
+                No,
+                [Description("Order can manage childs")]
+                Yes
+            }
+        }
+        

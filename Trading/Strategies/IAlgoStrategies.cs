@@ -98,6 +98,11 @@ namespace FISApiClient.Trading.Strategies
         Task StartAsync(CancellationToken cancellationToken);
 
         /// <summary>
+        /// Start executing the strategy by first creating a parent order
+        /// </summary>
+        Task StartWithParentOrderAsync(CancellationToken cancellationToken);
+
+        /// <summary>
         /// Stop the strategy execution
         /// </summary>
         Task StopAsync();
@@ -143,6 +148,7 @@ namespace FISApiClient.Trading.Strategies
         public decimal? LimitPrice { get; set; }
         public OrderModality OrderType { get; set; }
         public OrderValidity Validity { get; set; }
+        public double ParticipationRate { get; set; } // For POV strategy
 
         // FIS specific parameters
         public string ClearingAccount { get; set; } = string.Empty;
@@ -168,6 +174,7 @@ namespace FISApiClient.Trading.Strategies
         public OrderModality Modality { get; set; }
         public decimal Price { get; set; }
         public OrderValidity Validity { get; set; }
+        public string? ParentOrderId { get; set; }
         
         // FIS specific parameters
         public string ClientReference { get; set; } = string.Empty;

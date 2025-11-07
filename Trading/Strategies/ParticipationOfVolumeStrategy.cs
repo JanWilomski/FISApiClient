@@ -82,6 +82,10 @@ namespace FISApiClient.Trading.Strategies
         private readonly MdsConnectionService _mdsService;
         private CancellationTokenSource? _cts;
 
+        private string? _parentOrderId;
+        private readonly object _parentOrderLock = new object();
+        private bool _isParentOrderAccepted = false;
+
         private long _initialVolume = -1;
         private long _totalExecutedQuantity = 0;
         private double _participationRate;
@@ -221,6 +225,7 @@ namespace FISApiClient.Trading.Strategies
             // Strategia zawsze wysyła Market orders aby zapewnić realizację
             var orderRequest = new AlgoOrderRequest
             {
+                ParentOrderId = _parentOrderId, // Link to the parent order
                 LocalCode = OrderParams.Instrument.LocalCode,
                 Glid = OrderParams.Instrument.Glid,
                 Side = OrderParams.Side,
@@ -261,6 +266,73 @@ namespace FISApiClient.Trading.Strategies
                 Status = AlgoStrategyStatus.Completed;
                 DetailedStatus = "Strategy completed.";
                 StopAsync();
+            }
+        }
+
+        public async Task StartWithParentOrderAsync(CancellationToken cancellationToken)
+        {
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            Status = AlgoStrategyStatus.Initializing;
+            DetailedStatus = "Sending parent order...";
+
+            _sleService.ParentOrderAccepted += OnParentOrderAccepted;
+            _sleService.ParentOrderRejected += OnParentOrderRejected;
+
+            bool success = await _sleService.SendOrderAsync(
+                localCode: OrderParams.Instrument.LocalCode,
+                glid: OrderParams.Instrument.Glid,
+                side: OrderParams.Side,
+                quantity: OrderParams.TotalQuantity,
+                modality: OrderParams.OrderType,
+                price: OrderParams.LimitPrice ?? 0,
+                validity: OrderParams.Validity,
+                clientReference: OrderParams.ClientReference,
+                internalReference: "",
+                clientCodeType: OrderParams.ClientCodeType,
+                clearingAccount: OrderParams.ClearingAccount,
+                allocationCode: OrderParams.AllocationCode,
+                memo: OrderParams.Memo,
+                secondClientCodeType: OrderParams.SecondClientCodeType,
+                floorTraderId: OrderParams.FloorTraderId,
+                clientFreeField1: OrderParams.ClientFreeField1,
+                currency: OrderParams.Currency,
+                sliceAvailable: SliceAvailableType.Yes, // This marks it as a parent order
+                workTactic: null,
+                workPercentVolume: null
+            );
+
+            if (!success)
+            {
+                Status = AlgoStrategyStatus.Error;
+                DetailedStatus = "Failed to send parent order.";
+                _sleService.ParentOrderAccepted -= OnParentOrderAccepted;
+                _sleService.ParentOrderRejected -= OnParentOrderRejected;
+            }
+        }
+
+        private void OnParentOrderAccepted(string parentOrderId)
+        {
+            lock (_parentOrderLock)
+            {
+                _parentOrderId = parentOrderId;
+                _isParentOrderAccepted = true;
+                Status = AlgoStrategyStatus.Running;
+                DetailedStatus = $"Parent order accepted (ID: {parentOrderId}). Monitoring market...";
+
+                // Now that parent is accepted, start listening to market data
+                _mdsService.InstrumentDetailsReceived += OnMarketDataUpdate;
+                _mdsService.RequestInstrumentDetails(OrderParams.Instrument.Glid + OrderParams.Instrument.Symbol);
+            }
+        }
+
+        private void OnParentOrderRejected(string clientOrderId, string reason)
+        {
+            lock (_parentOrderLock)
+            {
+                Status = AlgoStrategyStatus.Error;
+                DetailedStatus = $"Parent order rejected: {reason}";
+                _sleService.ParentOrderAccepted -= OnParentOrderAccepted;
+                _sleService.ParentOrderRejected -= OnParentOrderRejected;
             }
         }
     }

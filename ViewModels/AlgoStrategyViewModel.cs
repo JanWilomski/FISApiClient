@@ -149,6 +149,7 @@ namespace FISApiClient.ViewModels
                 TotalQuantity = totalQuantity,
                 LimitPrice = limitPrice,
                 OrderType = OrderType == "Limit" ? OrderModality.Limit : OrderModality.Market,
+                ParticipationRate = double.TryParse(ParticipationRate, out var pr) ? pr : 0
             };
             
             // *** Crucial: Use the centralized provider for FIS params ***
@@ -187,7 +188,8 @@ namespace FISApiClient.ViewModels
             // Register with the manager BEFORE starting
             AlgoStrategyManagerService.Instance.Register(_activeStrategy);
             
-            await _activeStrategy.StartAsync(_cts.Token);
+            // Użyj nowej metody do startu z parent order
+            await _activeStrategy.StartWithParentOrderAsync(_cts.Token);
 
             MessageBox.Show($"Strategia '{_activeStrategy.Name}' została uruchomiona.", "Strategia Aktywna", MessageBoxButton.OK, MessageBoxImage.Information);
             RequestClose?.Invoke();
@@ -214,7 +216,8 @@ namespace FISApiClient.ViewModels
                     request.SecondClientCodeType,
                     request.FloorTraderId,
                     request.ClientFreeField1,
-                    request.Currency
+                    request.Currency,
+                    request.ParentOrderId // Pass the ParentOrderId for child orders
                 );
             }
             catch (Exception ex)

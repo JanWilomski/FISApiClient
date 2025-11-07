@@ -20,6 +20,7 @@ namespace FISApiClient.Models
         
         private static long _orderIdCounter = 0;
         private static readonly object _orderIdLock = new object();
+        private readonly HashSet<string> _pendingParentOrderIds = new HashSet<string>();
 
         private const byte Stx = 2;
         private const byte Etx = 3;
@@ -34,6 +35,8 @@ namespace FISApiClient.Models
         public event Action<string>? OrderAccepted;
         public event Action<List<Order>>? OrderBookReceived;
         public event Action<Order>? OrderUpdated;
+        public event Action<string>? ParentOrderAccepted;
+        public event Action<string, string>? ParentOrderRejected;
         
         private readonly List<byte> _receiveBuffer = new List<byte>();
         private bool _realtimeSubscribed = false;
@@ -132,7 +135,11 @@ namespace FISApiClient.Models
             string secondClientCodeType,
             string floorTraderId,
             string clientFreeField1,
-            string currency)
+            string currency,
+            string? parentOrderId = null, // Opcjonalny Parent Order ID (field 259)
+            SliceAvailableType? sliceAvailable = null, // Opcjonalny Slice Available (field 724)
+            string? workTactic = null, // Opcjonalna taktyka (field 241)
+            float? workPercentVolume = null) // Opcjonalny procent wolumenu (field 344)
         {
             try
             {
@@ -150,7 +157,7 @@ namespace FISApiClient.Models
                     localCode, glid, side, quantity, modality, price, validity,
                     clientReference, internalReference, clientCodeType, clearingAccount,
                     allocationCode, memo, secondClientCodeType, floorTraderId,
-                    clientFreeField1, currency);
+                    clientFreeField1, currency, parentOrderId, sliceAvailable, workTactic, workPercentVolume);
 
                 await _stream.WriteAsync(orderRequest, 0, orderRequest.Length);
                 await _stream.FlushAsync();
@@ -412,6 +419,42 @@ namespace FISApiClient.Models
                     Debug.WriteLine($"[SLE] Order ID: {bitmapFields[261]}");
                 if (bitmapFields.ContainsKey(65)) 
                     Debug.WriteLine($"[SLE] Reject Code: {bitmapFields[65]}");
+
+                // === OBSŁUGA PARENT/CHILD ORDERS ===
+                string clientOrderId = bitmapFields.GetValueOrDefault(261, string.Empty);
+                if (!string.IsNullOrEmpty(clientOrderId) && _pendingParentOrderIds.Contains(clientOrderId))
+                {
+                    // To jest odpowiedź na nasze PARENT order
+                    if (replyType == 'A') // Akceptacja
+                    {
+                        string parentSleReference = bitmapFields.GetValueOrDefault(42, string.Empty);
+                        if (!string.IsNullOrEmpty(parentSleReference))
+                        {
+                            Debug.WriteLine($"[SLE] >>> PARENT ORDER ACCEPTED! ClientID: {clientOrderId}, ParentSleRef: {parentSleReference}");
+                            _ = Task.Run(() => ParentOrderAccepted?.Invoke(parentSleReference));
+                            _pendingParentOrderIds.Remove(clientOrderId);
+                        }
+                    }
+                    else if (replyType == 'C' || replyType == 'G') // Odrzucenie
+                    {
+                        string rejectReason = bitmapFields.GetValueOrDefault(65, "Unknown reason");
+                        Debug.WriteLine($"[SLE] >>> PARENT ORDER REJECTED! ClientID: {clientOrderId}, Reason: {rejectReason}");
+                        _ = Task.Run(() => ParentOrderRejected?.Invoke(clientOrderId, rejectReason));
+                        _pendingParentOrderIds.Remove(clientOrderId);
+                    }
+                }
+                else
+                {
+                    // Normalna odpowiedź na zlecenie (lub child order)
+                    if (replyType == 'A')
+                    {
+                        _ = Task.Run(() => OrderAccepted?.Invoke($"Order accepted - Reference: {bitmapFields.GetValueOrDefault(42, "N/A")}"));
+                    }
+                    else if (replyType == 'C' || replyType == 'G')
+                    {
+                        _ = Task.Run(() => OrderRejected?.Invoke($"Order rejected - Code: {bitmapFields.GetValueOrDefault(65, "Unknown")}"));
+                    }
+                }
                 
                 Debug.WriteLine("[SLE] === ORDER REPLY COMPLETE ===");
                 
@@ -551,7 +594,11 @@ namespace FISApiClient.Models
             string secondClientCodeType,
             string floorTraderId,
             string clientFreeField1,
-            string currency)
+            string currency,
+            string? parentOrderId = null,
+            SliceAvailableType? sliceAvailable = null,
+            string? workTactic = null,
+            float? workPercentVolume = null)
         {
             var dataBuilder = new List<byte>();
             
@@ -681,11 +728,31 @@ namespace FISApiClient.Models
                 fields[192] = currency;
                 Debug.WriteLine($"[SLE] Field #192: Currency = {currency}");
             }
+
+            // Field 241: Work Tactic (dla parent orders)
+            if (!string.IsNullOrEmpty(workTactic))
+            {
+                fields[241] = workTactic;
+                Debug.WriteLine($"[SLE] Field #241: Work Tactic = {workTactic}");
+            }
             
             string orderId = GenerateOrderId();
             string orderIdTrimmed = orderId.Substring(0, Math.Min(16, orderId.Length));
             fields[261] = orderIdTrimmed;
             Debug.WriteLine($"[SLE] Field #261: Order ID = {orderIdTrimmed} *** CLIENT IDENTIFIER ***");
+
+            if (sliceAvailable.HasValue && sliceAvailable.Value == SliceAvailableType.Yes)
+            {
+                _pendingParentOrderIds.Add(orderIdTrimmed);
+                Debug.WriteLine($"[SLE] Added order {orderIdTrimmed} to pending parent orders list.");
+            }
+
+            // Field 259: Parent Order ID (dla child orders)
+            if (!string.IsNullOrEmpty(parentOrderId))
+            {
+                fields[259] = parentOrderId;
+                Debug.WriteLine($"[SLE] Field #259: Parent Order ID = {parentOrderId}");
+            }
             
             // // Field 306: Second Client Code Type (optional)
             // if (!string.IsNullOrEmpty(secondClientCodeType) && secondClientCodeType != " ")
@@ -707,11 +774,22 @@ namespace FISApiClient.Models
             fields[342] = capacity.ToString(CultureInfo.InvariantCulture);
             Debug.WriteLine($"[SLE] Field #342: Capacity = {capacity}");
 
-            
+            // Field 344: Work Percent Volume (dla POV)
+            if (workPercentVolume.HasValue)
+            {
+                fields[344] = workPercentVolume.Value.ToString("F2", CultureInfo.InvariantCulture);
+                Debug.WriteLine($"[SLE] Field #344: Work Percent Volume = {fields[344]}");
+            }
             
             int mifidInternIndic = 4;
             fields[574]=mifidInternIndic.ToString(CultureInfo.InvariantCulture);
-            
+
+            // Field 724: Slice Available (dla parent orders)
+            if (sliceAvailable.HasValue)
+            {
+                fields[724] = sliceAvailable.Value == SliceAvailableType.Yes ? "Y" : "N";
+                Debug.WriteLine($"[SLE] Field #724: Slice Available = {fields[724]}");
+            }
 
             // Field 1449 Direct Electronic Access
             int dea = 2;
