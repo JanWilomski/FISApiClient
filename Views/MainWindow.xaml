@@ -11,10 +11,6 @@
         WindowStartupLocation="CenterScreen"
         Background="#F5F5F5">
     
-    <Window.DataContext>
-        <viewmodels:ConnectionViewModel/>
-    </Window.DataContext>
-
     <Window.Resources>
         <!-- Modern TextBox Style -->
         <Style x:Key="CompactTextBox" TargetType="TextBox">

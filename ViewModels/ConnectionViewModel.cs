@@ -201,16 +201,16 @@ namespace FISApiClient.ViewModels
 
             // Load settings from ConfigProvider
             var mdsSettings = ConfigProvider.GetMdsSettings();
-            MdsIpAddress = mdsSettings.IpAddress;
-            MdsPort = mdsSettings.Port;
+            MdsIpAddress = mdsSettings.Ip;
+            MdsPort = mdsSettings.Port.ToString();
             MdsUser = mdsSettings.User;
             MdsPassword = mdsSettings.Password;
             MdsNode = mdsSettings.Node;
             MdsSubnode = mdsSettings.Subnode;
 
             var sleSettings = ConfigProvider.GetSleSettings();
-            SleIpAddress = sleSettings.IpAddress;
-            SlePort = sleSettings.Port;
+            SleIpAddress = sleSettings.Ip;
+            SlePort = sleSettings.Port.ToString();
             SleUser = sleSettings.User;
             SlePassword = sleSettings.Password;
             SleNode = sleSettings.Node;

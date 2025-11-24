@@ -12,7 +12,7 @@ namespace FISApiClient
         public MainWindow()
         {
             InitializeComponent();
-            
+            DataContext = new ConnectionViewModel();
             _navigationService = new NavigationService();
 
             if (DataContext is ConnectionViewModel viewModel)
