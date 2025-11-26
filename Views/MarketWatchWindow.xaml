@@ -209,33 +209,47 @@
         <Border Grid.Row="1" Style="{StaticResource CardBorder}">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="⚡" 
-                              FontSize="20"
-                              VerticalAlignment="Center"
-                              Margin="0,0,10,0"/>
-                    <TextBlock Text="{Binding StatusMessage}" 
-                              FontSize="13"
-                              Foreground="#666666"
-                              VerticalAlignment="Center"/>
-                </StackPanel>
+                    <Button Content="📂 Otwórz..."
+                            Command="{Binding OpenWatchlistCommand}"
+                            Style="{StaticResource ActionButton}"
+                            Margin="0,0,5,0"/>
+                    <Button Content="💾 Zapisz jako..."
+                            Command="{Binding SaveWatchlistAsCommand}"
+                            Style="{StaticResource ActionButton}"
+                            Margin="0,0,10,0"/>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Border Background="#E0E0E0" CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Plik:" FontWeight="SemiBold" Margin="0,0,5,0"/>
+                            <TextBlock Text="{Binding CurrentFileName}" FontStyle="Italic" Foreground="#555"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                
+                <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" 
+                           FontSize="13" Foreground="#666666" 
+                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"/>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Button Content="🔄 Odśwież"
                            Command="{Binding RefreshAllCommand}"
                            Style="{StaticResource ActionButton}"
                            Margin="0,0,10,0"/>
                     
-                    <Button Content="🗑️ Usuń"
+                    <Button Content="🗑️ Usuń instr."
+                           ToolTip="Usuń zaznaczony instrument z bieżącej listy"
                            Command="{Binding RemoveInstrumentCommand}"
                            Style="{StaticResource WarningButton}"
                            Margin="0,0,10,0"/>
                     
-                    <Button Content="❌ Wyczyść"
+                    <Button Content="❌ Wyczyść listę"
                            Command="{Binding ClearAllCommand}"
                            Style="{StaticResource DangerButton}"/>
                 </StackPanel>
