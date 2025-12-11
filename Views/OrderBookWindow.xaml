@@ -8,7 +8,7 @@
         Title="Order Book - FIS API Client"
         Height="700" Width="1400"
         WindowStartupLocation="CenterScreen"
-        Background="#F5F5F5">
+        Background="{DynamicResource WindowBackgroundBrush}">
 
     <Window.Resources>
         <!-- Converters -->
@@ -22,26 +22,26 @@
         
         <!-- Style dla nagłówków DataGrid -->
         <Style x:Key="DataGridHeaderStyle" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#2C3E50"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource PrimaryHueMidBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource InvertedTextBrush}"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="BorderThickness" Value="0,0,1,0"/>
-            <Setter Property="BorderBrush" Value="#34495E"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueDarkBrush}"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
         </Style>
 
         <!-- Style dla wierszy DataGrid -->
         <Style x:Key="DataGridRowStyle" TargetType="DataGridRow">
-            <Setter Property="Background" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            <Setter Property="BorderBrush" Value="#ECEFF1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E3F2FD"/>
+                    <Setter Property="Background" Value="{DynamicResource SurfaceLightBrush}"/>
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#BBDEFB"/>
+                    <Setter Property="Background" Value="{DynamicResource PrimaryHueLightBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -51,6 +51,7 @@
             <Setter Property="Padding" Value="8,5"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
         </Style>
 
         <!-- Style dla Side -->
@@ -58,10 +59,10 @@
             <Setter Property="FontWeight" Value="Bold"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Side}" Value="Buy">
-                    <Setter Property="Foreground" Value="#27AE60"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Side}" Value="Sell">
-                    <Setter Property="Foreground" Value="#E74C3C"/>
+                    <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -74,23 +75,23 @@
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Status}" Value="New">
                     <Setter Property="Text" Value="NEW"/>
-                    <Setter Property="Foreground" Value="#3498DB"/>
+                    <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidBrush}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="PartiallyFilled">
                     <Setter Property="Text" Value="PARTIAL"/>
-                    <Setter Property="Foreground" Value="#F39C12"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SecondaryAccentBrush}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Filled">
                     <Setter Property="Text" Value="FILLED"/>
-                    <Setter Property="Foreground" Value="#27AE60"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Cancelled">
                     <Setter Property="Text" Value="CANCELLED"/>
-                    <Setter Property="Foreground" Value="#95A5A6"/>
+                    <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Rejected">
                     <Setter Property="Text" Value="REJECTED"/>
-                    <Setter Property="Foreground" Value="#E74C3C"/>
+                    <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -109,7 +110,7 @@
 
         <!-- Style dla przycisków -->
         <Style x:Key="ModernButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource InvertedTextBrush}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -149,7 +150,7 @@
         </Grid.RowDefinitions>
 
         <!-- Header Panel -->
-        <Border Grid.Row="0" Background="#2C3E50" CornerRadius="5" Padding="15" Margin="0,0,0,10">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="5" Padding="15" Margin="0,0,0,10" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -161,16 +162,16 @@
                     <TextBlock Text="📊 ORDER BOOK" 
                                FontSize="20" 
                                FontWeight="Bold" 
-                               Foreground="White"
+                               Foreground="{DynamicResource PrimaryTextBrush}"
                                VerticalAlignment="Center"/>
                     
-                    <Border Background="#27AE60" 
+                    <Border Background="{DynamicResource SuccessBrush}" 
                             CornerRadius="3" 
                             Padding="8,4" 
                             Margin="15,0,0,0"
                             Visibility="{Binding IsRealTimeActive, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock Text="● REAL-TIME" 
-                                   Foreground="White" 
+                                   Foreground="{DynamicResource InvertedTextBrush}" 
                                    FontSize="11" 
                                    FontWeight="Bold"/>
                     </Border>
@@ -180,21 +181,21 @@
                     <Button Content="🔄 Odśwież" 
                             Command="{Binding RefreshCommand}"
                             Style="{StaticResource ModernButtonStyle}"
-                            Background="#3498DB"
+                            Background="{DynamicResource PrimaryHueMidBrush}"
                             Margin="0,0,10,0"/>
                     
                     <Button Content="🗑️ Wyczyść" 
                             Command="{Binding ClearAllCommand}"
                             Style="{StaticResource ModernButtonStyle}"
-                            Background="#95A5A6"/>
+                            Background="{DynamicResource SecondaryTextBrush}"/>
                 </StackPanel>
             </Grid>
         </Border>
 
         <!-- DataGrid -->
         <Border Grid.Row="1" 
-                Background="White" 
-                BorderBrush="#BDC3C7" 
+                Background="{DynamicResource SurfaceBrush}" 
+                BorderBrush="{DynamicResource BorderBrush}" 
                 BorderThickness="1" 
                 CornerRadius="5"
                 Margin="0,0,0,10">
@@ -213,7 +214,7 @@
                       ColumnHeaderStyle="{StaticResource DataGridHeaderStyle}"
                       RowStyle="{StaticResource DataGridRowStyle}"
                       CellStyle="{StaticResource DataGridCellStyle}"
-                      AlternatingRowBackground="#FAFAFA"
+                      AlternatingRowBackground="{DynamicResource SurfaceLightBrush}"
                       RowHeight="35">
 
                 <!-- CONTEXT MENU -->
@@ -350,8 +351,8 @@
 
         <!-- Status Bar -->
         <Border Grid.Row="2" 
-                Background="#ECF0F1" 
-                BorderBrush="#BDC3C7" 
+                Background="{DynamicResource SurfaceLightBrush}" 
+                BorderBrush="{DynamicResource BorderBrush}" 
                 BorderThickness="1" 
                 CornerRadius="5" 
                 Padding="15,10">
@@ -366,7 +367,7 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="⟳" 
                                FontSize="16" 
-                               Foreground="#3498DB"
+                               Foreground="{DynamicResource PrimaryHueMidBrush}"
                                Margin="0,0,8,0"
                                Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock.RenderTransform>
@@ -389,7 +390,7 @@
                     
                     <TextBlock Text="{Binding StatusMessage}" 
                                FontSize="13" 
-                               Foreground="#34495E"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
                                VerticalAlignment="Center"/>
                 </StackPanel>
 
@@ -398,24 +399,24 @@
                     <TextBlock Text="📋 Orders: " 
                                FontSize="13" 
                                FontWeight="SemiBold" 
-                               Foreground="#7F8C8D"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
                                VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding Orders.Count}" 
                                FontSize="13" 
                                FontWeight="Bold" 
-                               Foreground="#2C3E50"
+                               Foreground="{DynamicResource PrimaryTextBrush}"
                                Margin="5,0,15,0"
                                VerticalAlignment="Center"/>
                     
                     <TextBlock Text="🔄 Updates: " 
                                FontSize="13" 
                                FontWeight="SemiBold" 
-                               Foreground="#7F8C8D"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
                                VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding UpdateCount}" 
                                FontSize="13" 
                                FontWeight="Bold" 
-                               Foreground="#27AE60"
+                               Foreground="{DynamicResource SuccessBrush}"
                                VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>

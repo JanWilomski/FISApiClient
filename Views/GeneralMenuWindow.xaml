@@ -8,13 +8,13 @@
         Title="Menu Główne"
         Height="450" Width="400"
         WindowStartupLocation="CenterScreen"
-        Background="#F5F5F5">
+        Background="{DynamicResource WindowBackgroundBrush}">
 
     <Window.Resources>
         <!-- Button Style for Menu Items -->
         <Style x:Key="MenuItemButton" TargetType="Button">
-            <Setter Property="Background" Value="#1976D2"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource PrimaryHueMidBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource InvertedTextBrush}"/>
             <Setter Property="FontSize" Value="16"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -32,14 +32,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#1565C0"/>
+                                <Setter Property="Background" Value="{DynamicResource PrimaryHueDarkBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#0D47A1"/>
+                                <Setter Property="Background" Value="{DynamicResource PrimaryHueLightBrush}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#CCCCCC"/>
-                                <Setter Property="Foreground" Value="#999999"/>
+                                <Setter Property="Background" Value="{DynamicResource DisabledTextBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -47,15 +47,24 @@
             </Setter>
         </Style>
 
-        <!-- Style for Close Application Button -->
-        <Style x:Key="CloseAppButton" TargetType="Button" BasedOn="{StaticResource MenuItemButton}">
-            <Setter Property="Background" Value="#F44336"/>
+        <Style x:Key="SettingsButton" TargetType="Button" BasedOn="{StaticResource MenuItemButton}">
+            <Setter Property="Background" Value="{DynamicResource SecondaryTextBrush}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E53935"/>
+                    <Setter Property="Background" Value="{DynamicResource PrimaryTextBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+        <!-- Style for Close Application Button -->
+        <Style x:Key="CloseAppButton" TargetType="Button" BasedOn="{StaticResource MenuItemButton}">
+            <Setter Property="Background" Value="{DynamicResource ErrorBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#C0392B"/>
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#C62828"/>
+                    <Setter Property="Background" Value="#E74C3C"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -69,7 +78,7 @@
 
         <TextBlock Grid.Row="0" Text="Wybierz narzędzie:" 
                    FontSize="24" FontWeight="Bold" 
-                   Foreground="#333333" 
+                   Foreground="{DynamicResource PrimaryTextBrush}" 
                    HorizontalAlignment="Center" 
                    Margin="0,0,0,20"/>
 
@@ -78,7 +87,8 @@
             <Button Content="📊 Market Watch" Command="{Binding OpenMarketWatchCommand}" Style="{StaticResource MenuItemButton}"/>
             <Button Content="📝 Order Book" Command="{Binding OpenOrderBookCommand}" Style="{StaticResource MenuItemButton}"/>
             <Button Content="🤖 Monitor Strategii" Command="{Binding OpenAlgoMonitorCommand}" Style="{StaticResource MenuItemButton}"/>
-            <Button Content="❌ Zamknij Aplikację" Command="{Binding CloseApplicationCommand}" Style="{StaticResource CloseAppButton}" Margin="0,20,0,0"/>
+            <Button Content="⚙️ Ustawienia" Command="{Binding OpenSettingsCommand}" Style="{StaticResource SettingsButton}" Margin="0,20,0,0"/>
+            <Button Content="❌ Zamknij Aplikację" Command="{Binding CloseApplicationCommand}" Style="{StaticResource CloseAppButton}" Margin="0,10,0,0"/>
         </StackPanel>
     </Grid>
 </Window>

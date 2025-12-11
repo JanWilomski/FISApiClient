@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using FISApiClient.Services;
 using Microsoft.Extensions.Configuration;
 
 namespace FISApiClient
@@ -18,8 +19,18 @@ namespace FISApiClient
 
             Configuration = builder.Build();
 
+            // Load and apply theme on startup
+            LoadAndApplyTheme();
+
             var mainWindow = new MainWindow();
             mainWindow.Show();
+        }
+
+        private async void LoadAndApplyTheme()
+        {
+            var settingsService = new SettingsService();
+            var isDark = await settingsService.LoadIsDarkModeAsync();
+            ThemeService.ApplyTheme(isDark ? ThemeService.Theme.Dark : ThemeService.Theme.Light);
         }
     }
 }

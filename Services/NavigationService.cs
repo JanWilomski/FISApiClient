@@ -60,19 +60,64 @@ namespace FISApiClient.Services
             orderBookWindow.Show();
         }
 
-        public void ShowAlgoMonitorWindow()
-        {
-            // This window can be opened once and reused
-            var existingWindow = Application.Current.Windows.OfType<AlgoMonitorWindow>().FirstOrDefault();
-            if (existingWindow != null)
-            {
-                existingWindow.Activate();
+                public void ShowAlgoMonitorWindow()
+
+                {
+
+                    // This window can be opened once and reused
+
+                    var existingWindow = Application.Current.Windows.OfType<AlgoMonitorWindow>().FirstOrDefault();
+
+                    if (existingWindow != null)
+
+                    {
+
+                        existingWindow.Activate();
+
+                    }
+
+                    else
+
+                    {
+
+                        var monitorWindow = new AlgoMonitorWindow();
+
+                        monitorWindow.Show();
+
+                    }
+
+                }
+
+                
+
+                public void ShowSettingsWindow()
+
+                {
+
+                    var existingWindow = Application.Current.Windows.OfType<SettingsWindow>().FirstOrDefault();
+
+                    if (existingWindow != null)
+
+                    {
+
+                        existingWindow.Activate();
+
+                    }
+
+                    else
+
+                    {
+
+                        var settingsWindow = new SettingsWindow();
+
+                        settingsWindow.Show();
+
+                    }
+
+                }
+
             }
-            else
-            {
-                var monitorWindow = new AlgoMonitorWindow();
-                monitorWindow.Show();
-            }
+
         }
-    }
-}
+
+        

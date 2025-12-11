@@ -9,14 +9,15 @@
         Height="650" 
         Width="850"
         WindowStartupLocation="CenterScreen"
-        Background="#F5F5F5">
+        Background="{DynamicResource WindowBackgroundBrush}">
     
     <Window.Resources>
         <!-- Modern TextBox Style -->
         <Style x:Key="CompactTextBox" TargetType="TextBox">
-            <Setter Property="BorderBrush" Value="#DDDDDD"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceLightBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Template">
@@ -31,10 +32,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="#1976D2"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
                             </Trigger>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter Property="BorderBrush" Value="#1976D2"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
                                 <Setter Property="BorderThickness" Value="2"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -45,9 +46,10 @@
 
         <!-- Modern PasswordBox Style -->
         <Style x:Key="CompactPasswordBox" TargetType="PasswordBox">
-            <Setter Property="BorderBrush" Value="#DDDDDD"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceLightBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Template">
@@ -62,10 +64,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="#1976D2"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
                             </Trigger>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter Property="BorderBrush" Value="#1976D2"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
                                 <Setter Property="BorderThickness" Value="2"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -76,8 +78,8 @@
 
         <!-- Button Styles -->
         <Style x:Key="CompactButton" TargetType="Button">
-            <Setter Property="Background" Value="#1976D2"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource PrimaryHueMidBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource InvertedTextBrush}"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -94,14 +96,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#1565C0"/>
+                                <Setter Property="Background" Value="{DynamicResource PrimaryHueDarkBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#0D47A1"/>
+                                <Setter Property="Background" Value="{DynamicResource PrimaryHueLightBrush}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#CCCCCC"/>
-                                <Setter Property="Foreground" Value="#999999"/>
+                                <Setter Property="Background" Value="{DynamicResource DisabledTextBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -110,27 +112,27 @@
         </Style>
 
         <Style x:Key="DisconnectButton" TargetType="Button" BasedOn="{StaticResource CompactButton}">
-            <Setter Property="Background" Value="#F44336"/>
+            <Setter Property="Background" Value="{DynamicResource ErrorBrush}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E53935"/>
+                    <Setter Property="Background" Value="#C0392B"/>
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#C62828"/>
+                    <Setter Property="Background" Value="#E74C3C"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="ShowInstrumentsButton" TargetType="Button" BasedOn="{StaticResource CompactButton}">
-            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="Padding" Value="16,8"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#43A047"/>
+                    <Setter Property="Background" Value="#5cb85c"/>
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#388E3C"/>
+                    <Setter Property="Background" Value="#449d44"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -146,23 +148,21 @@
 
         <!-- Header -->
         <Border Grid.Row="0" 
-                Background="White" 
+                Background="{DynamicResource SurfaceBrush}" 
                 CornerRadius="6" 
                 Padding="15"
-                Margin="0,0,0,12">
-            <Border.Effect>
-                <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="8" ShadowDepth="2"/>
-            </Border.Effect>
-            
+                Margin="0,0,0,12"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1">
             <StackPanel>
                 <TextBlock Text="FIS API Client" 
                           FontSize="22" 
                           FontWeight="Bold"
-                          Foreground="#1976D2"
+                          Foreground="{DynamicResource PrimaryHueDarkBrush}"
                           Margin="0,0,0,3"/>
                 <TextBlock Text="Połączenie z serwerami Market Data (MDS) oraz Order Entry (SLE)" 
                           FontSize="12" 
-                          Foreground="#666666"/>
+                          Foreground="{DynamicResource SecondaryTextBrush}"/>
             </StackPanel>
         </Border>
 
@@ -176,12 +176,11 @@
 
             <!-- MDS Connection -->
             <Border Grid.Column="0"
-                    Background="White" 
+                    Background="{DynamicResource SurfaceBrush}" 
                     CornerRadius="6" 
-                    Padding="15">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="8" ShadowDepth="2"/>
-                </Border.Effect>
+                    Padding="15"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1">
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
@@ -190,11 +189,11 @@
                             <TextBlock Text="📊 MDS" 
                                       FontSize="16" 
                                       FontWeight="Bold"
-                                      Foreground="#1976D2"
+                                      Foreground="{DynamicResource PrimaryHueDarkBrush}"
                                       VerticalAlignment="Center"/>
                             <TextBlock Text=" (Market Data)" 
                                       FontSize="12" 
-                                      Foreground="#666666"
+                                      Foreground="{DynamicResource SecondaryTextBrush}"
                                       VerticalAlignment="Center"
                                       Margin="3,0,0,0"/>
                         </StackPanel>
@@ -205,11 +204,11 @@
                                 Padding="10,6"
                                 Margin="0,0,0,12">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <Ellipse Width="8" Height="8" Fill="White" Margin="0,0,6,0"/>
+                                <Ellipse Width="8" Height="8" Fill="{DynamicResource InvertedTextBrush}" Margin="0,0,6,0"/>
                                 <TextBlock Text="{Binding MdsConnectionStatusText}" 
                                           FontSize="11" 
                                           FontWeight="SemiBold"
-                                          Foreground="White"/>
+                                          Foreground="{DynamicResource InvertedTextBrush}"/>
                             </StackPanel>
                         </Border>
 
@@ -229,27 +228,27 @@
                             </Grid.RowDefinitions>
 
                             <!-- IP -->
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="IP:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="IP:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8"/>
                             <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MdsIpAddress}" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
                             <!-- Port -->
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8"/>
                             <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding MdsPort}" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
                             <!-- User -->
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="User:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="User:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8"/>
                             <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MdsUser}" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
                             <!-- Password -->
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Pass:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Pass:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8"/>
                             <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="MdsPasswordBox" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactPasswordBox}" Margin="0,0,0,8" PasswordChanged="MdsPasswordBox_PasswordChanged"/>
 
                             <!-- Node -->
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Node:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Node:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8"/>
                             <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding MdsNode}" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
                             <!-- Subnode -->
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Subnode:" VerticalAlignment="Center" FontSize="11" Foreground="#555"/>
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Subnode:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
                             <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding MdsSubnode}" IsEnabled="{Binding IsMdsNotConnected}" Style="{StaticResource CompactTextBox}"/>
                         </Grid>
 
@@ -271,13 +270,11 @@
 
             <!-- SLE Connection -->
             <Border Grid.Column="2"
-                    Background="White" 
+                    Background="{DynamicResource SurfaceBrush}" 
                     CornerRadius="6" 
-                    Padding="15">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="8" ShadowDepth="2"/>
-                </Border.Effect>
-
+                    Padding="15"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <!-- SLE Header -->
@@ -285,11 +282,11 @@
                             <TextBlock Text="📝 SLE" 
                                       FontSize="16" 
                                       FontWeight="Bold"
-                                      Foreground="#FF9800"
+                                      Foreground="{DynamicResource SecondaryAccentBrush}"
                                       VerticalAlignment="Center"/>
                             <TextBlock Text=" (Order Entry)" 
                                       FontSize="12" 
-                                      Foreground="#666666"
+                                      Foreground="{DynamicResource SecondaryTextBrush}"
                                       VerticalAlignment="Center"
                                       Margin="3,0,0,0"/>
                         </StackPanel>
@@ -300,11 +297,11 @@
                                 Padding="10,6"
                                 Margin="0,0,0,12">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <Ellipse Width="8" Height="8" Fill="White" Margin="0,0,6,0"/>
+                                <Ellipse Width="8" Height="8" Fill="{DynamicResource InvertedTextBrush}" Margin="0,0,6,0"/>
                                 <TextBlock Text="{Binding SleConnectionStatusText}" 
                                           FontSize="11" 
                                           FontWeight="SemiBold"
-                                          Foreground="White"/>
+                                          Foreground="{DynamicResource InvertedTextBrush}"/>
                             </StackPanel>
                         </Border>
 
@@ -324,27 +321,27 @@
                             </Grid.RowDefinitions>
 
                             <!-- IP -->
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="IP:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="IP:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8"/>
                             <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SleIpAddress}" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
                             <!-- Port -->
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8"/>
                             <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SlePort}" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
                             <!-- User -->
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="User:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="User:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8"/>
                             <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SleUser}" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
                             <!-- Password -->
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Pass:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Pass:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8"/>
                             <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="SlePasswordBox" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactPasswordBox}" Margin="0,0,0,8" PasswordChanged="SlePasswordBox_PasswordChanged"/>
 
                             <!-- Node -->
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Node:" VerticalAlignment="Center" FontSize="11" Foreground="#555" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Node:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8"/>
                             <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SleNode}" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactTextBox}" Margin="0,0,0,8"/>
 
                             <!-- Subnode -->
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Subnode:" VerticalAlignment="Center" FontSize="11" Foreground="#555"/>
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Subnode:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
                             <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding SleSubnode}" IsEnabled="{Binding IsSleNotConnected}" Style="{StaticResource CompactTextBox}"/>
                         </Grid>
 
@@ -377,11 +374,13 @@
 
         <!-- Status Bar -->
         <Border Grid.Row="3" 
-                Background="#263238" 
+                Background="{DynamicResource SurfaceLightBrush}" 
                 CornerRadius="4" 
-                Padding="12,8">
+                Padding="12,8"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1">
             <TextBlock Text="{Binding StatusMessage}" 
-                      Foreground="White"
+                      Foreground="{DynamicResource SecondaryTextBrush}"
                       FontSize="11"/>
         </Border>
     </Grid>

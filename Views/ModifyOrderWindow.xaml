@@ -9,7 +9,7 @@
         Height="550" 
         Width="550"
         WindowStartupLocation="CenterScreen"
-        Background="#F5F5F5"
+        Background="{DynamicResource WindowBackgroundBrush}"
         ResizeMode="NoResize">
 
     <Window.Resources>
@@ -19,20 +19,20 @@
         <Style x:Key="SectionHeader" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#2C3E50"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
 
         <Style x:Key="LabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#7F8C8D"/>
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
             <Setter Property="Margin" Value="0,0,0,5"/>
         </Style>
 
         <Style x:Key="ValueStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#2C3E50"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
             <Setter Property="Margin" Value="0,0,0,15"/>
         </Style>
 
@@ -40,7 +40,9 @@
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Padding" Value="8"/>
             <Setter Property="Margin" Value="0,0,0,15"/>
-            <Setter Property="BorderBrush" Value="#BDC3C7"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
 
@@ -48,10 +50,12 @@
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Padding" Value="8"/>
             <Setter Property="Margin" Value="0,0,0,15"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
         </Style>
 
         <Style x:Key="ActionButton" TargetType="Button">
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource InvertedTextBrush}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -87,15 +91,15 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Background="#3498DB" CornerRadius="5" Padding="15" Margin="0,0,0,15">
+        <Border Grid.Row="0" Background="{DynamicResource PrimaryHueMidBrush}" CornerRadius="5" Padding="15" Margin="0,0,0,15">
             <StackPanel>
                 <TextBlock Text="📝 MODYFIKACJA ZLECENIA" 
                            FontSize="18" 
                            FontWeight="Bold" 
-                           Foreground="White"/>
+                           Foreground="{DynamicResource InvertedTextBrush}"/>
                 <TextBlock Text="{Binding Instrument}" 
                            FontSize="14" 
-                           Foreground="White" 
+                           Foreground="{DynamicResource InvertedTextBrush}" 
                            Opacity="0.9"
                            Margin="0,5,0,0"/>
             </StackPanel>
@@ -105,7 +109,7 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <!-- Original Order Info -->
-                <Border Background="White" BorderBrush="#BDC3C7" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,0,0,15">
+                <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,0,0,15">
                     <StackPanel>
                         <TextBlock Text="INFORMACJE O ZLECENIU" Style="{StaticResource SectionHeader}"/>
                         
@@ -135,7 +139,7 @@
                 </Border>
 
                 <!-- Modification Form -->
-                <Border Background="White" BorderBrush="#BDC3C7" BorderThickness="1" CornerRadius="5" Padding="15">
+                <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="15">
                     <StackPanel>
                         <TextBlock Text="MODYFIKUJ PARAMETRY" Style="{StaticResource SectionHeader}"/>
                         
@@ -153,7 +157,7 @@
                             <TextBlock Grid.Column="1" 
                                        Text="{Binding OriginalQuantity, StringFormat='Oryginalna: {0}'}" 
                                        FontSize="11" 
-                                       Foreground="#95A5A6" 
+                                       Foreground="{DynamicResource DisabledTextBrush}" 
                                        VerticalAlignment="Center"
                                        Margin="10,0,0,0"/>
                         </Grid>
@@ -172,7 +176,7 @@
                             <TextBlock Grid.Column="1" 
                                        Text="{Binding OriginalPrice, StringFormat='Oryginalna: {0:F2}'}" 
                                        FontSize="11" 
-                                       Foreground="#95A5A6" 
+                                       Foreground="{DynamicResource DisabledTextBrush}" 
                                        VerticalAlignment="Center"
                                        Margin="10,0,0,0"/>
                         </Grid>
@@ -198,7 +202,7 @@
                             <TextBlock Grid.Column="1" 
                                        Text="{Binding OriginalValidity, StringFormat='Oryginalna: {0}'}" 
                                        FontSize="11" 
-                                       Foreground="#95A5A6" 
+                                       Foreground="{DynamicResource DisabledTextBrush}" 
                                        VerticalAlignment="Center"
                                        Margin="10,0,0,0"/>
                         </Grid>
@@ -209,15 +213,15 @@
 
         <!-- Status Bar -->
         <Border Grid.Row="2" 
-                Background="#ECF0F1" 
-                BorderBrush="#BDC3C7" 
+                Background="{DynamicResource SurfaceLightBrush}" 
+                BorderBrush="{DynamicResource BorderBrush}" 
                 BorderThickness="1" 
                 CornerRadius="5" 
                 Padding="10"
                 Margin="0,15,0,10"
                 Visibility="{Binding IsModifying, Converter={StaticResource BooleanToVisibilityConverter}}">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="⟳" FontSize="16" Foreground="#3498DB" Margin="0,0,10,0">
+                <TextBlock Text="⟳" FontSize="16" Foreground="{DynamicResource PrimaryHueMidBrush}" Margin="0,0,10,0">
                     <TextBlock.RenderTransform>
                         <RotateTransform Angle="0" CenterX="8" CenterY="8"/>
                     </TextBlock.RenderTransform>
@@ -232,7 +236,7 @@
                         </EventTrigger>
                     </TextBlock.Triggers>
                 </TextBlock>
-                <TextBlock Text="{Binding StatusMessage}" FontSize="13" Foreground="#34495E" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding StatusMessage}" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center"/>
             </StackPanel>
         </Border>
 
@@ -241,11 +245,11 @@
             <Button Content="Anuluj" 
                     Command="{Binding CancelCommand}"
                     Style="{StaticResource ActionButton}"
-                    Background="#95A5A6"/>
+                    Background="{DynamicResource SecondaryTextBrush}"/>
             <Button Content="💾 Modyfikuj" 
                     Command="{Binding ModifyCommand}"
                     Style="{StaticResource ActionButton}"
-                    Background="#27AE60"/>
+                    Background="{DynamicResource SuccessBrush}"/>
         </StackPanel>
     </Grid>
 </Window>

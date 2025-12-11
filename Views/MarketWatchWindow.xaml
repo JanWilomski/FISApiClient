@@ -8,27 +8,24 @@
         Height="700" 
         Width="1400"
         WindowStartupLocation="CenterScreen"
-        Background="#F5F5F5"
+        Background="{DynamicResource WindowBackgroundBrush}"
         Closing="Window_Closing">
 
     <Window.Resources>
         <!-- Styl dla kart -->
         <Style x:Key="CardBorder" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="20"/>
             <Setter Property="Margin" Value="0,0,0,15"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="10" ShadowDepth="2"/>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
         </Style>
 
         <!-- Styl dla przycisków -->
         <Style x:Key="ActionButton" TargetType="Button">
-            <Setter Property="Background" Value="#1976D2"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource PrimaryHueMidBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource InvertedTextBrush}"/>
             <Setter Property="Padding" Value="15,8"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -47,26 +44,27 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1565C0"/>
+                    <Setter Property="Background" Value="{DynamicResource PrimaryHueDarkBrush}"/>
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#CCCCCC"/>
+                    <Setter Property="Background" Value="{DynamicResource DisabledTextBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
                     <Setter Property="Cursor" Value="Arrow"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
-            <Setter Property="Background" Value="#F44336"/>
+            <Setter Property="Background" Value="{DynamicResource ErrorBrush}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#D32F2F"/>
+                    <Setter Property="Background" Value="#C0392B"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="WarningButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
-            <Setter Property="Background" Value="#FF9800"/>
+            <Setter Property="Background" Value="{DynamicResource SecondaryAccentBrush}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="#F57C00"/>
@@ -76,13 +74,13 @@
 
         <!-- Styl dla DataGrid -->
         <Style x:Key="MarketWatchDataGrid" TargetType="DataGrid">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="RowBackground" Value="White"/>
-            <Setter Property="AlternatingRowBackground" Value="#FAFAFA"/>
+            <Setter Property="RowBackground" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="AlternatingRowBackground" Value="{DynamicResource SurfaceLightBrush}"/>
             <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#F0F0F0"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="AutoGenerateColumns" Value="False"/>
             <Setter Property="CanUserAddRows" Value="False"/>
             <Setter Property="CanUserDeleteRows" Value="False"/>
@@ -95,12 +93,12 @@
 
         <!-- Styl dla nagłówków kolumn -->
         <Style x:Key="ColumnHeaderStyle" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#F5F5F5"/>
-            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceLightBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
         </Style>
@@ -110,10 +108,11 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="8,5"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#E3F2FD"/>
-                    <Setter Property="Foreground" Value="#000000"/>
+                    <Setter Property="Background" Value="{DynamicResource PrimaryHueLightBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource InvertedTextBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -151,22 +150,22 @@
                     <TextBlock Text="Market Watch - Monitor Rynkowy" 
                               FontSize="24" 
                               FontWeight="Bold"
-                              Foreground="#1976D2"
+                              Foreground="{DynamicResource PrimaryHueDarkBrush}"
                               Margin="0,0,0,5"/>
                     
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="💡 Dodaj instrumenty z Listy Instrumentów" 
                                   FontSize="11" 
-                                  Foreground="#FF9800"
+                                  Foreground="{DynamicResource SecondaryAccentBrush}"
                                   FontStyle="Italic"
                                   Margin="0,0,10,0"/>
                         <TextBlock Text="•" 
-                                  Foreground="#CCCCCC" 
+                                  Foreground="{DynamicResource DisabledTextBrush}" 
                                   Margin="0,0,10,0"
                                   VerticalAlignment="Center"/>
                         <TextBlock Text="Dane aktualizują się automatycznie" 
                                   FontSize="11" 
-                                  Foreground="#4CAF50"
+                                  Foreground="{DynamicResource SuccessBrush}"
                                   FontStyle="Italic"/>
                     </StackPanel>
                 </StackPanel>
@@ -177,12 +176,12 @@
                            Padding="10,5"
                            Margin="0,0,15,0">
                         <TextBlock Text="{Binding ConnectionStatusText}" 
-                                  Foreground="White"
+                                  Foreground="{DynamicResource InvertedTextBrush}"
                                   FontWeight="SemiBold"
                                   FontSize="12"/>
                     </Border>
                     
-                    <Border Background="#2196F3" 
+                    <Border Background="{DynamicResource PrimaryHueMidBrush}" 
                            CornerRadius="5" 
                            Padding="12,6"
                            Margin="0,0,0,0">
@@ -191,11 +190,11 @@
                                       FontSize="14"
                                       Margin="0,0,5,0"/>
                             <TextBlock Text="{Binding InstrumentCount}" 
-                                      Foreground="White"
+                                      Foreground="{DynamicResource InvertedTextBrush}"
                                       FontWeight="Bold"
                                       FontSize="16"/>
                             <TextBlock Text=" instrumentów" 
-                                      Foreground="White"
+                                      Foreground="{DynamicResource InvertedTextBrush}"
                                       FontSize="12"
                                       Margin="3,0,0,0"
                                       VerticalAlignment="Center"/>
@@ -224,16 +223,16 @@
                             Style="{StaticResource ActionButton}"
                             Margin="0,0,10,0"/>
 
-                    <Border Background="#E0E0E0" CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
+                    <Border Background="{DynamicResource BorderBrush}" CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Plik:" FontWeight="SemiBold" Margin="0,0,5,0"/>
-                            <TextBlock Text="{Binding CurrentFileName}" FontStyle="Italic" Foreground="#555"/>
+                            <TextBlock Text="Plik:" FontWeight="SemiBold" Margin="0,0,5,0" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            <TextBlock Text="{Binding CurrentFileName}" FontStyle="Italic" Foreground="{DynamicResource SecondaryTextBrush}"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
                 
                 <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" 
-                           FontSize="13" Foreground="#666666" 
+                           FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}" 
                            VerticalAlignment="Center" HorizontalAlignment="Center"
                            TextTrimming="CharacterEllipsis"/>
 
@@ -276,7 +275,7 @@
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="FontWeight" Value="Bold"/>
-                                <Setter Property="Foreground" Value="#1976D2"/>
+                                <Setter Property="Foreground" Value="{DynamicResource PrimaryHueDarkBrush}"/>
                                 <Setter Property="FontSize" Value="13"/>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
@@ -455,7 +454,7 @@
         </Border>
 
         <!-- Footer z informacjami -->
-        <Border Grid.Row="3" Background="#FAFAFA" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="15,10">
+        <Border Grid.Row="3" Background="{DynamicResource SurfaceLightBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="15,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -467,24 +466,24 @@
                     <TextBlock Text="📈" FontSize="14" Margin="0,0,5,0" VerticalAlignment="Center"/>
                     <TextBlock Text="Market Watch v1.0" 
                               FontSize="11" 
-                              Foreground="#999999"
+                              Foreground="{DynamicResource SecondaryTextBrush}"
                               VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <TextBlock Text="⚡ Real-time updates aktywne" 
                               FontSize="11" 
-                              Foreground="#4CAF50"
+                              Foreground="{DynamicResource SuccessBrush}"
                               FontWeight="SemiBold"
                               VerticalAlignment="Center"
                               Margin="0,0,10,0"/>
                     <TextBlock Text="|" 
-                              Foreground="#CCCCCC" 
+                              Foreground="{DynamicResource DisabledTextBrush}" 
                               Margin="0,0,10,0"
                               VerticalAlignment="Center"/>
                     <TextBlock Text="FIS API v3" 
                               FontSize="11" 
-                              Foreground="#999999"
+                              Foreground="{DynamicResource SecondaryTextBrush}"
                               VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>

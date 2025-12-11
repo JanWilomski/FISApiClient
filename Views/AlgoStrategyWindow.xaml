@@ -8,7 +8,7 @@
         Height="700" 
         Width="900"
         WindowStartupLocation="CenterScreen"
-        Background="#F5F5F5">
+        Background="{DynamicResource WindowBackgroundBrush}">
 
     <Window.Resources>
         <!-- Converters -->
@@ -16,24 +16,18 @@
         
         <!-- Card Style -->
         <Style x:Key="CardBorder" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="20"/>
             <Setter Property="Margin" Value="0,0,0,15"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#000000" 
-                                    BlurRadius="10" 
-                                    ShadowDepth="2" 
-                                    Opacity="0.1"/>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
         </Style>
 
         <!-- Strategy Card Style -->
         <Style x:Key="StrategyCard" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="2"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="15"/>
@@ -41,23 +35,23 @@
             <Setter Property="Cursor" Value="Hand"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="#1976D2"/>
-                    <Setter Property="Background" Value="#F8FBFF"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                    <Setter Property="Background" Value="{DynamicResource SurfaceLightBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <!-- Selected Strategy Card Style -->
         <Style x:Key="SelectedStrategyCard" TargetType="Border" BasedOn="{StaticResource StrategyCard}">
-            <Setter Property="BorderBrush" Value="#1976D2"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueDarkBrush}"/>
             <Setter Property="BorderThickness" Value="3"/>
-            <Setter Property="Background" Value="#E3F2FD"/>
+            <Setter Property="Background" Value="{DynamicResource PrimaryHueLightBrush}"/>
         </Style>
 
         <!-- Button Styles -->
         <Style x:Key="PrimaryButton" TargetType="Button">
-            <Setter Property="Background" Value="#1976D2"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource PrimaryHueMidBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource InvertedTextBrush}"/>
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -74,11 +68,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#1565C0"/>
+                                <Setter Property="Background" Value="{DynamicResource PrimaryHueDarkBrush}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#CCCCCC"/>
-                                <Setter Property="Foreground" Value="#999999"/>
+                                <Setter Property="Background" Value="{DynamicResource DisabledTextBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -87,10 +81,10 @@
         </Style>
 
         <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="Foreground" Value="#666666"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceLightBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="2"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Padding" Value="20,10"/>
@@ -107,7 +101,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="#999999"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SecondaryTextBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -119,7 +113,9 @@
         <Style x:Key="ParamTextBox" TargetType="TextBox">
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
     </Window.Resources>
@@ -138,11 +134,11 @@
                     <TextBlock Text="⚡ Wybierz strategię algorytmiczną" 
                               FontSize="24" 
                               FontWeight="Bold"
-                              Foreground="#1976D2"
+                              Foreground="{DynamicResource PrimaryHueDarkBrush}"
                               Margin="0,0,0,10"/>
                     <TextBlock Text="{Binding InstrumentInfo}" 
                               FontSize="14" 
-                              Foreground="#666666"/>
+                              Foreground="{DynamicResource SecondaryTextBrush}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -162,7 +158,7 @@
                         <TextBlock Text="DOSTĘPNE STRATEGIE" 
                                   FontSize="13" 
                                   FontWeight="Bold"
-                                  Foreground="#666666"
+                                  Foreground="{DynamicResource SecondaryTextBrush}"
                                   Margin="0,0,0,15"/>
 
                         <ItemsControl ItemsSource="{Binding AvailableStrategies}">
@@ -176,18 +172,18 @@
                                                 <TextBlock Text="{Binding Name}" 
                                                           FontSize="16" 
                                                           FontWeight="Bold"
-                                                          Foreground="#333333"/>
+                                                          Foreground="{DynamicResource PrimaryTextBrush}"/>
                                                 <TextBlock Text="{Binding Category}" 
                                                           FontSize="10" 
                                                           Foreground="White"
-                                                          Background="#FF9800"
+                                                          Background="{DynamicResource SecondaryAccentBrush}"
                                                           Padding="6,2"
                                                           HorizontalAlignment="Right"
                                                           VerticalAlignment="Top"/>
                                             </Grid>
                                             <TextBlock Text="{Binding Description}" 
                                                       FontSize="12" 
-                                                      Foreground="#666666"
+                                                      Foreground="{DynamicResource SecondaryTextBrush}"
                                                       TextWrapping="Wrap"
                                                       Margin="0,8,0,0"/>
                                         </StackPanel>
@@ -208,25 +204,27 @@
                             <TextBlock Text="{Binding SelectedStrategy.Name}" 
                                       FontSize="20" 
                                       FontWeight="Bold"
-                                      Foreground="#1976D2"
+                                      Foreground="{DynamicResource PrimaryHueDarkBrush}"
                                       Margin="0,0,0,10"/>
                             
                             <TextBlock Text="{Binding SelectedStrategy.DetailedDescription}" 
                                       FontSize="13" 
-                                      Foreground="#666666"
+                                      Foreground="{DynamicResource SecondaryTextBrush}"
                                       TextWrapping="Wrap"
                                       Margin="0,0,0,20"/>
 
                             <!-- Order Parameters Section -->
-                            <Border Background="#F5F5F5" 
+                            <Border Background="{DynamicResource SurfaceLightBrush}" 
                                    CornerRadius="6" 
                                    Padding="15"
-                                   Margin="0,0,0,20">
+                                   Margin="0,0,0,20"
+                                   BorderBrush="{DynamicResource BorderBrush}"
+                                   BorderThickness="1">
                                 <StackPanel>
                                     <TextBlock Text="PARAMETRY ZLECENIA" 
                                               FontSize="12" 
                                               FontWeight="Bold"
-                                              Foreground="#666666"
+                                              Foreground="{DynamicResource SecondaryTextBrush}"
                                               Margin="0,0,0,12"/>
 
                                     <Grid>
@@ -243,7 +241,7 @@
 
                                         <!-- Side -->
                                         <StackPanel Grid.Row="0" Grid.Column="0">
-                                            <TextBlock Text="Kierunek:" FontSize="11" Foreground="#666666" Margin="0,0,0,5"/>
+                                            <TextBlock Text="Kierunek:" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,5"/>
                                             <ComboBox SelectedValue="{Binding Side}" SelectedValuePath="Tag" FontSize="12" Padding="8,6">
                                                 <ComboBoxItem Content="Kupno" Tag="Buy"/>
                                                 <ComboBoxItem Content="Sprzedaż" Tag="Sell"/>
@@ -252,21 +250,21 @@
 
                                         <!-- Quantity -->
                                         <StackPanel Grid.Row="0" Grid.Column="2">
-                                            <TextBlock Text="Całkowita ilość:" FontSize="11" Foreground="#666666" Margin="0,0,0,5"/>
+                                            <TextBlock Text="Całkowita ilość:" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,5"/>
                                             <TextBox Text="{Binding TotalQuantity, UpdateSourceTrigger=PropertyChanged}" 
                                                     Style="{StaticResource ParamTextBox}"/>
                                         </StackPanel>
 
                                         <!-- Limit Price -->
                                         <StackPanel Grid.Row="2" Grid.Column="0">
-                                            <TextBlock Text="Cena limit:" FontSize="11" Foreground="#666666" Margin="0,0,0,5"/>
+                                            <TextBlock Text="Cena limit:" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,5"/>
                                             <TextBox Text="{Binding LimitPrice, UpdateSourceTrigger=PropertyChanged}" 
                                                     Style="{StaticResource ParamTextBox}"/>
                                         </StackPanel>
 
                                         <!-- Order Type -->
                                         <StackPanel Grid.Row="2" Grid.Column="2">
-                                            <TextBlock Text="Typ zlecenia:" FontSize="11" Foreground="#666666" Margin="0,0,0,5"/>
+                                            <TextBlock Text="Typ zlecenia:" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,5"/>
                                             <ComboBox SelectedValue="{Binding OrderType}" SelectedValuePath="Tag" FontSize="12" Padding="8,6">
                                                 <ComboBoxItem Content="Limit" Tag="Limit"/>
                                                 <ComboBoxItem Content="Market" Tag="Market"/>
@@ -277,7 +275,7 @@
                             </Border>
 
                             <!-- Strategy Parameters Section -->
-                            <Border Background="#E3F2FD" 
+                            <Border Background="{DynamicResource PrimaryHueLightBrush}" 
                                     CornerRadius="6" 
                                     Padding="15"
                                     Margin="0,0,0,20">
@@ -285,7 +283,7 @@
                                     <TextBlock Text="PARAMETRY STRATEGII" 
                                                FontSize="12" 
                                                FontWeight="Bold"
-                                               Foreground="#1976D2"
+                                               Foreground="{DynamicResource InvertedTextBrush}"
                                                Margin="0,0,0,12"/>
 
                                     <!-- POV Strategy Parameters -->
@@ -303,7 +301,7 @@
 
                                         <TextBlock Text="Udział w wolumenie (%):" 
                                                    FontSize="11" 
-                                                   Foreground="#666666" 
+                                                   Foreground="{DynamicResource InvertedTextBrush}" 
                                                    Margin="0,0,0,5"/>
                                         <TextBox Text="{Binding ParticipationRate, UpdateSourceTrigger=PropertyChanged}" 
                                                  Style="{StaticResource ParamTextBox}"/>
@@ -311,7 +309,7 @@
 
                                     <!-- Placeholder for other strategies -->
                                     <TextBlock FontSize="12" 
-                                               Foreground="#666666"
+                                               Foreground="{DynamicResource InvertedTextBrush}"
                                                FontStyle="Italic"
                                                TextWrapping="Wrap">
                                         <TextBlock.Style>
@@ -330,17 +328,19 @@
                             </Border>
 
                             <!-- Strategy Info -->
-                            <Border Background="#FFF3E0" 
+                            <Border Background="{DynamicResource SurfaceLightBrush}" 
                                    CornerRadius="6" 
                                    Padding="12"
-                                   Margin="0,0,0,0">
+                                   Margin="0,0,0,0"
+                                   BorderBrush="{DynamicResource BorderBrush}"
+                                   BorderThickness="1">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="ℹ️" 
                                               FontSize="16" 
                                               Margin="0,0,10,0"
                                               VerticalAlignment="Top"/>
                                     <TextBlock FontSize="11" 
-                                              Foreground="#666666"
+                                              Foreground="{DynamicResource SecondaryTextBrush}"
                                               TextWrapping="Wrap">
                                         <Run Text="Strategia będzie automatycznie zarządzać wysyłaniem zleceń zgodnie z wybranymi parametrami. "/>
                                         <Run Text="Możesz zatrzymać strategię w dowolnym momencie." FontWeight="SemiBold"/>
@@ -360,11 +360,11 @@
                                       Opacity="0.3"/>
                             <TextBlock Text="Wybierz strategię z listy" 
                                       FontSize="16" 
-                                      Foreground="#999999"
+                                      Foreground="{DynamicResource SecondaryTextBrush}"
                                       HorizontalAlignment="Center"/>
                             <TextBlock Text="aby zobaczyć szczegóły i parametry" 
                                       FontSize="13" 
-                                      Foreground="#BBBBBB"
+                                      Foreground="{DynamicResource DisabledTextBrush}"
                                       HorizontalAlignment="Center"
                                       Margin="0,5,0,0"/>
                         </StackPanel>

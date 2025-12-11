@@ -15,6 +15,7 @@ namespace FISApiClient.ViewModels
         public RelayCommand OpenMarketWatchCommand { get; }
         public RelayCommand OpenOrderBookCommand { get; }
         public RelayCommand OpenAlgoMonitorCommand { get; }
+        public RelayCommand OpenSettingsCommand { get; }
         public RelayCommand CloseApplicationCommand { get; }
 
         public GeneralMenuViewModel(MdsConnectionService mdsService, SleConnectionService sleService)
@@ -41,6 +42,11 @@ namespace FISApiClient.ViewModels
             OpenAlgoMonitorCommand = new RelayCommand(
                 _ => _navigationService.ShowAlgoMonitorWindow(),
                 _ => true // Algo Monitor can be opened regardless of connection status
+            );
+            
+            OpenSettingsCommand = new RelayCommand(
+                _ => _navigationService.ShowSettingsWindow(),
+                _ => true
             );
 
             CloseApplicationCommand = new RelayCommand(
