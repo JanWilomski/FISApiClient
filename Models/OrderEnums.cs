@@ -60,12 +60,19 @@ namespace FISApiClient.Models
                 Unknown
             }
         
-            public enum SliceAvailableType
-            {
-                [Description("Order cannot manage childs")]
-                No,
-                [Description("Order can manage childs")]
-                Yes
-            }
-        }
-        
+                public enum SliceAvailableType
+                {
+                    [Description("Order cannot manage childs")]
+                    No,
+                    [Description("Order can manage childs")]
+                    Yes
+                }
+            
+                public enum OrderType
+                {
+                    [Description("Standard")]
+                    Standard,
+                    [Description("Parent Order for Algo (EDA)")]
+                    EDA
+                }
+            }        

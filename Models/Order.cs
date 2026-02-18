@@ -149,6 +149,13 @@ namespace FISApiClient.Models
 
         #region Order Type Properties
 
+        private OrderType _orderType;
+        public OrderType OrderType
+        {
+            get => _orderType;
+            set => SetProperty(ref _orderType, value);
+        }
+
         private OrderModality _modality = OrderModality.Unknown;
         public OrderModality Modality
         {
@@ -350,6 +357,13 @@ namespace FISApiClient.Models
 
         #region Additional Properties
 
+        private string _workTactic = string.Empty;
+        public string WorkTactic
+        {
+            get => _workTactic;
+            set => SetProperty(ref _workTactic, value);
+        }
+
         private string _glid = string.Empty;
         public string GLID
         {
@@ -395,6 +409,20 @@ namespace FISApiClient.Models
         #endregion
 
         #region Parent/Child Order Properties
+
+        private string _careOrderReference = string.Empty;
+        public string CareOrderReference
+        {
+            get => _careOrderReference;
+            set => SetProperty(ref _careOrderReference, value);
+        }
+
+        private string _routingReference = string.Empty;
+        public string RoutingReference
+        {
+            get => _routingReference;
+            set => SetProperty(ref _routingReference, value);
+        }
 
         private string _parentOrderId = string.Empty;
         public string ParentOrderId

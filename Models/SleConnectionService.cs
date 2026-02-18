@@ -174,7 +174,36 @@ namespace FISApiClient.Models
             }
         }
 
-        public void Disconnect()
+                public async Task<bool> SendOrderAsync(Order order)
+        {
+            try
+            {
+                Debug.WriteLine($"[SLE] ========================================");
+                Debug.WriteLine($"[SLE] Sending order object");
+                Debug.WriteLine($"[SLE] OrderId: {order.OrderId}");
+                Debug.WriteLine($"[SLE] Instrument: {order.Instrument}");
+                Debug.WriteLine($"[SLE] Side: {order.Side}");
+                Debug.WriteLine($"[SLE] Quantity: {order.Quantity}");
+                Debug.WriteLine($"[SLE] Modality: {order.Modality}");
+                Debug.WriteLine($"[SLE] OrderType: {order.OrderType}");
+
+                byte[] orderRequest = BuildOrderRequest(order);
+
+                await _stream.WriteAsync(orderRequest, 0, orderRequest.Length);
+                await _stream.FlushAsync();
+
+                Debug.WriteLine($"[SLE] ? Order object sent successfully");
+                Debug.WriteLine($"[SLE] ========================================");
+        
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SLE] ? Failed to send order object: {ex.Message}");
+                return false;
+            }
+        }
+public void Disconnect()
         {
             if (_tcpClient == null) return;
             
@@ -553,7 +582,7 @@ namespace FISApiClient.Models
             };
         }
 
-        private string GetOrderModalityString(OrderModality modality)
+                private string GetOrderModalityString(OrderModality modality)
         {
             return modality switch
             {
@@ -577,7 +606,162 @@ namespace FISApiClient.Models
             };
         }
 
-        private byte[] BuildOrderRequest(
+                private byte[] BuildOrderRequest(Order order)
+        {
+            var dataBuilder = new List<byte>();
+            
+            Debug.WriteLine($"[SLE] ========================================");
+            Debug.WriteLine($"[SLE] Building order request from Order object with SEQUENTIAL bitmap filling");
+            
+            // === HEADER ===
+            string userNum = _userNumber.PadLeft(5, '0');
+            dataBuilder.AddRange(Encoding.ASCII.GetBytes(userNum));
+            Debug.WriteLine($"[SLE] User number: {userNum}");
+            
+            dataBuilder.Add((byte)'O'); // Request category = Simple order
+            Debug.WriteLine($"[SLE] Request category: O");
+            
+            dataBuilder.Add((byte)'0'); // Command = New order
+            Debug.WriteLine($"[SLE] Command: 0 (New)");
+            
+            // G: Stockcode - LOCAL CODE
+            dataBuilder.AddRange(EncodeField(order.LocalCode));
+            Debug.WriteLine($"[SLE] Stockcode (LOCAL CODE): {order.LocalCode}");
+            
+            // Filler (10 bajt�w)
+            dataBuilder.AddRange(Encoding.ASCII.GetBytes(new string(' ', 10)));
+            
+            // === BITMAP - budujemy s�ownik p�l ===
+            Debug.WriteLine($"[SLE] Building bitmap dictionary from Order object:");
+            var fields = new Dictionary<int, string>();
+            
+            fields[0] = GetOrderSideString(order.Side);
+            fields[1] = order.Quantity.ToString(CultureInfo.InvariantCulture);
+
+            // Field 2: Modality (Standard handling)
+            fields[2] = GetOrderModalityString(order.Modality);
+            Debug.WriteLine($"[SLE] Field #2: Modality = {fields[2]}");
+
+            if (order.Modality == OrderModality.Limit && order.Price > 0)
+            {
+                fields[3] = order.Price.ToString(CultureInfo.InvariantCulture);
+            }
+            
+            fields[4] = GetOrderValidityString(order.Validity);
+
+            if (!string.IsNullOrEmpty(order.ClientReference))
+            {
+                fields[10] = order.ClientReference.Substring(0, Math.Min(8, order.ClientReference.Length));
+            }
+            
+            string intRef = order.InternalReference;
+            if (string.IsNullOrEmpty(intRef))
+            {
+                intRef = $"ORD{DateTime.Now:yyyyMMddHHmmss}";
+            }
+            fields[12] = intRef.Substring(0, Math.Min(16, intRef.Length));
+            
+            fields[17] = order.ClientCodeType;
+            
+            if (!string.IsNullOrEmpty(order.AllocationCode))
+            {
+                fields[19] = order.AllocationCode.Substring(0, Math.Min(8, order.AllocationCode.Length));
+            }
+            
+            if (!string.IsNullOrEmpty(order.Memo))
+            {
+                fields[81] = order.Memo.Substring(0, Math.Min(18, order.Memo.Length));
+            }
+
+            fields[92] = DateTime.Now.ToString("yyyyMMddHHmmss");
+            
+            string glidFormatted = order.GLID.Length >= 12 
+                ? order.GLID.Substring(0, 12) 
+                : order.GLID.PadRight(12, ' ');
+            fields[106] = glidFormatted;
+
+            fields[112] = "0959";
+            
+            if (!string.IsNullOrEmpty(order.ClearingAccount))
+            {
+                fields[132] = order.ClearingAccount;
+            }
+            
+            if (!string.IsNullOrEmpty(order.FloorTraderId))
+            {
+                fields[147] = order.FloorTraderId;
+            }
+            
+            if (!string.IsNullOrEmpty(order.Currency))
+            {
+                fields[192] = order.Currency;
+            }
+
+            // ADDED: WorkTactic field for EDA
+            if (!string.IsNullOrEmpty(order.WorkTactic))
+            {
+                fields[241] = order.WorkTactic;
+                Debug.WriteLine($"[SLE] Field #241: Work Tactic = {fields[241]}");
+            }
+            
+            string orderId = GenerateOrderId();
+            fields[261] = orderId.Substring(0, Math.Min(16, orderId.Length));
+            Debug.WriteLine($"[SLE] Field #261: Order ID = {fields[261]} *** CLIENT IDENTIFIER ***");
+
+            // This logic is for tracking the parent order reply.
+            // If it's a parent order (WorkTactic = EDA), we add its generated client ID to a pending list.
+            if (order.WorkTactic == "EDA")
+            {
+                _pendingParentOrderIds.Add(fields[261]);
+                Debug.WriteLine($"[SLE] Added order {fields[261]} to pending parent orders list (EDA).");
+            }
+
+            if (!string.IsNullOrEmpty(order.ParentOrderId))
+            {
+                fields[259] = order.ParentOrderId; // For child orders
+            }
+            
+            fields[342] = "1";
+
+            int mifidInternIndic = 4;
+            fields[574]=mifidInternIndic.ToString(CultureInfo.InvariantCulture);
+
+            // REMOVED: Old incorrect logic for parent orders
+            // if (sliceAvailable.HasValue)
+            // {
+            //     fields[724] = sliceAvailable.Value == SliceAvailableType.Yes ? "Y" : "N";
+            // }
+
+            int dea = 2;
+            fields[1449]=dea.ToString(CultureInfo.InvariantCulture);
+
+            fields[1470] = "222386";
+            fields[1482] = "123321";
+            fields[1483] = "4";
+            fields[1488] = "1";
+          
+            // === SEKWENCYJNE WYPE�NIANIE BITMAPY ===
+            int maxFieldNumber = fields.Keys.Max();
+            var bitmapFields = new List<byte>();
+            
+            for (int i = 0; i <= maxFieldNumber; i++)
+            {
+                if (fields.ContainsKey(i))
+                {
+                    bitmapFields.AddRange(EncodeField(fields[i]));
+                }
+                else
+                {
+                    bitmapFields.Add(32); // GL 0
+                }
+            }
+            
+            dataBuilder.AddRange(bitmapFields);
+            var dataPayload = dataBuilder.ToArray();
+            
+            return BuildMessage(dataPayload, 2000);
+        }
+private byte[] BuildOrderRequest(
             string localCode,
             string glid,
             OrderSide side,
@@ -1865,3 +2049,4 @@ namespace FISApiClient.Models
         public long ExecutedQuantity { get; set; }
     }
 }
+
